@@ -1,0 +1,1551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCP Server Forge — Product & Implementation Plan</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c10;
+    --bg2: #0f1218;
+    --bg3: #151921;
+    --surface: #1a1f2b;
+    --surface2: #212736;
+    --border: #2a3040;
+    --border2: #333d52;
+    --text: #e8eaf0;
+    --text2: #9aa3b8;
+    --text3: #6b7591;
+    --accent: #4f8eff;
+    --accent2: #2563eb;
+    --accent-glow: rgba(79,142,255,0.15);
+    --green: #22c55e;
+    --green-bg: rgba(34,197,94,0.1);
+    --amber: #f59e0b;
+    --amber-bg: rgba(245,158,11,0.1);
+    --red: #ef4444;
+    --red-bg: rgba(239,68,68,0.1);
+    --teal: #14b8a6;
+    --teal-bg: rgba(20,184,166,0.1);
+    --radius: 10px;
+    --radius-lg: 16px;
+    --font-display: 'DM Serif Display', serif;
+    --font-body: 'Outfit', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-weight: 400;
+    min-height: 100vh;
+    line-height: 1.65;
+  }
+
+  /* NAV */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(10,12,16,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    height: 56px;
+  }
+
+  .nav-logo {
+    font-family: var(--font-display);
+    font-size: 18px;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  .nav-logo span { color: var(--accent); }
+
+  .tab-bar {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+  }
+
+  .tab-btn {
+    background: none;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    color: var(--text3);
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.01em;
+  }
+
+  .tab-btn:hover { color: var(--text2); border-color: var(--border); }
+  .tab-btn.active {
+    background: var(--surface);
+    border-color: var(--border2);
+    color: var(--text);
+  }
+
+  /* PAGE */
+  .page { display: none; animation: fadeIn 0.3s ease; }
+  .page.active { display: block; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  /* HERO */
+  .hero {
+    padding: 5rem 2rem 4rem;
+    max-width: 900px;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  .hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--accent-glow);
+    border: 1px solid rgba(79,142,255,0.3);
+    border-radius: 20px;
+    padding: 4px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+  }
+
+  .hero h1 {
+    font-family: var(--font-display);
+    font-size: clamp(38px, 6vw, 64px);
+    line-height: 1.1;
+    color: var(--text);
+    margin-bottom: 1.25rem;
+  }
+
+  .hero h1 em {
+    font-style: italic;
+    color: var(--accent);
+  }
+
+  .hero-sub {
+    font-size: 17px;
+    color: var(--text2);
+    max-width: 600px;
+    margin: 0 auto 2.5rem;
+    font-weight: 300;
+  }
+
+  .hero-pitch {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.75rem;
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-style: italic;
+    color: var(--text2);
+    max-width: 680px;
+    margin: 0 auto;
+  }
+
+  /* METRICS */
+  .metrics-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    max-width: 900px;
+    margin: 0 auto 4rem;
+    padding: 0 2rem;
+  }
+
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    text-align: center;
+    transition: border-color 0.2s;
+  }
+
+  .metric-card:hover { border-color: var(--border2); }
+
+  .metric-val {
+    font-family: var(--font-display);
+    font-size: 36px;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+
+  .metric-lbl {
+    font-size: 12px;
+    color: var(--text3);
+    font-weight: 400;
+  }
+
+  /* SECTION */
+  .section {
+    max-width: 900px;
+    margin: 0 auto 4rem;
+    padding: 0 2rem;
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+  }
+
+  .section h2 {
+    font-family: var(--font-display);
+    font-size: 30px;
+    color: var(--text);
+    margin-bottom: 1rem;
+  }
+
+  .section p {
+    color: var(--text2);
+    font-size: 15px;
+    margin-bottom: 0.85rem;
+    font-weight: 300;
+  }
+
+  /* DIVIDER */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    max-width: 900px;
+    margin: 0 auto 4rem;
+  }
+
+  /* FLOW STEPS */
+  .flow-steps { display: flex; flex-direction: column; gap: 0; }
+
+  .flow-step {
+    display: flex;
+    gap: 0;
+    position: relative;
+  }
+
+  .flow-step-left {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 52px;
+    flex-shrink: 0;
+  }
+
+  .step-num {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent);
+    flex-shrink: 0;
+    z-index: 1;
+  }
+
+  .step-line {
+    width: 1px;
+    background: var(--border);
+    flex: 1;
+    min-height: 24px;
+    margin: 4px 0;
+  }
+
+  .flow-step:last-child .step-line { display: none; }
+
+  .flow-step-body {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 12px;
+    flex: 1;
+    transition: border-color 0.2s;
+  }
+
+  .flow-step-body:hover { border-color: var(--border2); }
+
+  .flow-step-body h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  .flow-step-body p {
+    font-size: 14px;
+    color: var(--text2);
+    font-weight: 300;
+    margin: 0;
+  }
+
+  .step-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-bottom: 6px;
+  }
+
+  .tag-blue { background: rgba(79,142,255,0.12); color: var(--accent); }
+  .tag-green { background: var(--green-bg); color: var(--green); }
+  .tag-amber { background: var(--amber-bg); color: var(--amber); }
+  .tag-teal { background: var(--teal-bg); color: var(--teal); }
+  .tag-red { background: var(--red-bg); color: var(--red); }
+
+  /* BOB TABLE */
+  .bob-table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  thead tr { background: var(--bg3); }
+  thead th {
+    text-align: left;
+    padding: 12px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text3);
+    border-bottom: 1px solid var(--border);
+  }
+
+  tbody tr { transition: background 0.15s; }
+  tbody tr:hover { background: var(--surface2); }
+  tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text2);
+    font-weight: 300;
+    vertical-align: top;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody td:first-child { color: var(--text); font-weight: 500; font-family: var(--font-mono); font-size: 13px; }
+
+  /* MOAT */
+  .moat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .moat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+
+  .moat-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+
+  .moat-icon-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 0.75rem;
+  }
+
+  .moat-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--accent-glow);
+    border: 1px solid rgba(79,142,255,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+  }
+
+  .moat-card h3 { font-size: 14px; font-weight: 600; color: var(--text); }
+  .moat-card p { font-size: 13px; color: var(--text2); font-weight: 300; margin: 0; }
+
+  /* PRICING */
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  .price-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    transition: border-color 0.2s;
+  }
+
+  .price-card.featured { border-color: var(--accent); }
+  .price-card:hover { border-color: var(--border2); }
+  .price-card.featured:hover { border-color: var(--accent); }
+
+  .price-badge {
+    display: inline-block;
+    background: rgba(79,142,255,0.12);
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+  }
+
+  .price-name { font-size: 13px; color: var(--text3); margin-bottom: 4px; font-weight: 400; }
+  .price-val {
+    font-family: var(--font-display);
+    font-size: 28px;
+    color: var(--text);
+    margin-bottom: 12px;
+  }
+
+  .price-features { list-style: none; }
+  .price-features li {
+    font-size: 13px;
+    color: var(--text2);
+    padding: 4px 0;
+    padding-left: 18px;
+    position: relative;
+    font-weight: 300;
+  }
+  .price-features li::before {
+    content: '–';
+    position: absolute;
+    left: 0;
+    color: var(--text3);
+  }
+
+  /* RISKS */
+  .risk-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .risk-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+  }
+
+  .risk-card h3 { font-size: 14px; font-weight: 600; color: var(--text); margin: 8px 0 6px; }
+  .risk-card p { font-size: 13px; color: var(--text2); font-weight: 300; margin: 0; }
+
+  /* PHASE TIMELINE */
+  .phase-timeline {
+    display: flex;
+    gap: 0;
+    position: relative;
+    margin-bottom: 1.5rem;
+  }
+
+  .phase-block {
+    flex: 1;
+    padding: 12px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    position: relative;
+    transition: background 0.2s;
+  }
+
+  .phase-block:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+  .phase-block:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+  .phase-block + .phase-block { border-left: none; }
+
+  .phase-num { font-size: 10px; color: var(--text3); font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+  .phase-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .phase-sub { font-size: 12px; color: var(--text3); font-weight: 300; margin-top: 2px; }
+
+  /* IMPLEMENTATION */
+  .impl-container { max-width: 900px; margin: 0 auto; padding: 3rem 2rem; }
+
+  .impl-hero { text-align: center; margin-bottom: 4rem; }
+  .impl-hero h1 {
+    font-family: var(--font-display);
+    font-size: 42px;
+    color: var(--text);
+    margin-bottom: 0.75rem;
+  }
+
+  .impl-hero p { font-size: 16px; color: var(--text2); font-weight: 300; max-width: 560px; margin: 0 auto; }
+
+  .milestone {
+    position: relative;
+    display: flex;
+    gap: 20px;
+    margin-bottom: 0;
+  }
+
+  .milestone-left {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 44px;
+    flex-shrink: 0;
+  }
+
+  .milestone-dot {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 500;
+    flex-shrink: 0;
+    border: 2px solid;
+    z-index: 1;
+  }
+
+  .milestone-dot.alpha { background: rgba(79,142,255,0.1); border-color: var(--accent); color: var(--accent); }
+  .milestone-dot.beta { background: rgba(20,184,166,0.1); border-color: var(--teal); color: var(--teal); }
+  .milestone-dot.release { background: rgba(34,197,94,0.1); border-color: var(--green); color: var(--green); }
+  .milestone-dot.scale { background: rgba(245,158,11,0.1); border-color: var(--amber); color: var(--amber); }
+
+  .milestone-connector {
+    width: 2px;
+    background: var(--border);
+    flex: 1;
+    margin: 6px 0;
+    min-height: 30px;
+  }
+
+  .milestone:last-child .milestone-connector { display: none; }
+
+  .milestone-body {
+    flex: 1;
+    padding-bottom: 2.5rem;
+  }
+
+  .milestone-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+    padding-top: 8px;
+  }
+
+  .milestone-title-group h2 {
+    font-family: var(--font-display);
+    font-size: 22px;
+    color: var(--text);
+  }
+
+  .milestone-title-group .milestone-phase {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 2px;
+  }
+
+  .milestone-timing {
+    font-size: 11px;
+    color: var(--text3);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-weight: 400;
+  }
+
+  .milestone-desc {
+    font-size: 14px;
+    color: var(--text2);
+    font-weight: 300;
+    margin-bottom: 1rem;
+  }
+
+  .task-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 1.25rem; }
+
+  .task {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    transition: border-color 0.15s;
+  }
+
+  .task:hover { border-color: var(--border2); }
+
+  .task-check {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border2);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .task-content h4 { font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 2px; }
+  .task-content p { font-size: 12px; color: var(--text3); font-weight: 300; margin: 0; }
+
+  .test-gate {
+    background: var(--bg3);
+    border: 1px dashed var(--border2);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    margin-top: 0.75rem;
+  }
+
+  .test-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--green-bg);
+    border: 1px solid rgba(34,197,94,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .test-gate h4 { font-size: 13px; font-weight: 600; color: var(--green); margin-bottom: 4px; }
+  .test-gate ul {
+    list-style: none;
+    margin: 0;
+  }
+  .test-gate ul li {
+    font-size: 12px;
+    color: var(--text3);
+    font-weight: 300;
+    padding: 2px 0;
+    padding-left: 14px;
+    position: relative;
+  }
+  .test-gate ul li::before { content: '✓'; position: absolute; left: 0; color: var(--green); font-size: 11px; }
+
+  .code-block {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text2);
+    margin-top: 0.75rem;
+    overflow-x: auto;
+    white-space: pre;
+    line-height: 1.8;
+  }
+
+  .code-comment { color: var(--text3); }
+  .code-key { color: var(--accent); }
+  .code-val { color: var(--green); }
+  .code-str { color: var(--amber); }
+
+  .milestone-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 0 0 2.5rem;
+  }
+
+  /* FOOTER */
+  .footer {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: var(--text3);
+    font-size: 13px;
+    border-top: 1px solid var(--border);
+    font-weight: 300;
+  }
+
+  .footer strong { color: var(--text2); font-weight: 500; }
+
+  /* RESPONSIVE */
+  @media (max-width: 680px) {
+    .metrics-row { grid-template-columns: repeat(2, 1fr); }
+    .moat-grid, .risk-grid, .pricing-grid { grid-template-columns: 1fr; }
+    .phase-timeline { flex-direction: column; }
+    .phase-block:first-child { border-radius: var(--radius) var(--radius) 0 0; }
+    .phase-block:last-child { border-radius: 0 0 var(--radius) var(--radius); }
+    .phase-block + .phase-block { border-left: 1px solid var(--border); border-top: none; }
+    .milestone-header { flex-direction: column; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">MCP <span>Forge</span></div>
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="showTab('product')">Product Plan</button>
+    <button class="tab-btn" onclick="showTab('impl')">Implementation Plan</button>
+  </div>
+</nav>
+
+<!-- ===================== PRODUCT TAB ===================== -->
+<div id="tab-product" class="page active">
+
+  <div class="hero">
+    <div class="hero-eyebrow">IBM Bob Hackathon &nbsp;·&nbsp; Startup Vision</div>
+    <h1>MCP Server <em>Forge</em></h1>
+    <p class="hero-sub">Turn any OpenAPI specification into a production-ready, auditable, regenerable MCP server — in minutes, not days.</p>
+    <div class="hero-pitch">"The first MCP server takes 11 minutes. Every one after that takes 4. Built with Bob, replayable forever."</div>
+  </div>
+
+  <div class="metrics-row">
+    <div class="metric-card">
+      <div class="metric-val">~4 min</div>
+      <div class="metric-lbl">Server generation after first run</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-val">9</div>
+      <div class="metric-lbl">IBM Bob primitives exercised in demo</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-val">0</div>
+      <div class="metric-lbl">Hand-rolled boilerplate required</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-val">∞</div>
+      <div class="metric-lbl">Re-runs when upstream API changes</div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section">
+    <div class="section-label">The Problem</div>
+    <h2>Everyone writes the same server, badly</h2>
+    <p>Every team building agentic AI systems in 2026 ends up hand-rolling the same Model Context Protocol server. The protocol itself is solved — but each individual server still gets written from scratch, and the same mistakes appear every time: hallucinated parameters accepted because schemas were not strict, no audit logging, secrets leaking into tool definitions, no structured handling of rate limits or auth failures, no adversarial tests.</p>
+    <p>Writing one MCP server is annoying. Writing the tenth is a waste of senior engineering time. And the boring infrastructure failures are what actually break agents in production, not the protocol.</p>
+  </div>
+
+  <div class="section">
+    <div class="section-label">The Solution</div>
+    <h2>How the Forge works, end to end</h2>
+    <p>One input — an OpenAPI spec. One output — a complete, deployable, auditable MCP server. Four Bob agents, two human approval gates, one replayable BobShell recipe.</p>
+
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="flow-step-left">
+          <div class="step-num">01</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="flow-step-body">
+          <div class="step-tag tag-blue">Bob Architect mode</div>
+          <h3>Spec ingestion and dependency analysis</h3>
+          <p>Bob reads the OpenAPI spec and builds a full dependency graph — all endpoints, parameters, auth methods, rate limit headers, and schema ambiguities. A lighter Granite model handles parsing; a stronger Claude model reasons about missing or conflicting fields. Output is a structured plan artifact saved to the BobShell context.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-step-left">
+          <div class="step-num">02</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="flow-step-body">
+          <div class="step-tag tag-amber">Human checkpoint</div>
+          <h3>Approval gate — plan review</h3>
+          <p>Before any code is written, the plan is surfaced to the user via Bob's approval checkpoint. The user can modify scope, flag endpoints to exclude, or approve and continue. This gate is not optional — it is a hard stop baked into the BobShell recipe, satisfying enterprise governance requirements.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-step-left">
+          <div class="step-num">03</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="flow-step-body">
+          <div class="step-tag tag-blue">Bob Builder mode</div>
+          <h3>Code generation with security-by-default</h3>
+          <p>A stronger model generates the full MCP server with strict input validation, env-var-based secret handling, structured error responses, and audit logging baked in. Bob's secrets detection layer refuses to embed auth values into tool schemas — they are lifted to environment variables by default. Inline Semgrep scanning runs as a build gate; generation fails if static analysis fails.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-step-left">
+          <div class="step-num">04</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="flow-step-body">
+          <div class="step-tag tag-teal">Bob Tester mode</div>
+          <h3>Adversarial test suite generation and execution</h3>
+          <p>An adversarial test suite is generated and run automatically — not just unit tests, but malformed input tests, injection attempts, and rate limit edge cases. Results surface in Bob's Findings panel. A second human approval gate is offered before the server is marked deployable.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-step-left">
+          <div class="step-num">05</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="flow-step-body">
+          <div class="step-tag tag-green">Bob Documenter mode</div>
+          <h3>Documentation, packaging, and BobShell recipe</h3>
+          <p>Bob generates README, env variable reference, deployment instructions, and a BobShell recipe file. The recipe is the primary artifact — it encodes the full generation pipeline so when the upstream API changes, the user re-runs one command and gets an updated, diff-able server. The Forge is the artifact; the server is the byproduct.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">IBM Bob Integration</div>
+    <h2>Nine Bob primitives, one demo</h2>
+    <div class="bob-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Bob feature</th>
+            <th>Role in the Forge</th>
+            <th>Why it matters</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Architect mode</td><td>Spec parsing and dependency planning</td><td>Understands system structure before writing a single line of code</td></tr>
+          <tr><td>Builder / Code mode</td><td>Full MCP server code generation</td><td>Production-grade output, not skeleton boilerplate</td></tr>
+          <tr><td>Orchestrator mode</td><td>Chains four agents with handoffs and approval gates</td><td>The pipeline is the product, not a one-shot script</td></tr>
+          <tr><td>BobShell literate workflows</td><td>User-facing entry point; one command, fully reproducible</td><td>Re-runnable when the upstream API changes</td></tr>
+          <tr><td>Multi-model routing</td><td>Lighter models for parsing, stronger for generation and review</td><td>Cost-optimized automatically per task type</td></tr>
+          <tr><td>Inline Semgrep scanning</td><td>Build gate — generated code must pass static analysis</td><td>Catches security issues before deployment</td></tr>
+          <tr><td>Secrets detection</td><td>Refuses to embed auth values into tool schemas</td><td>Prevents the most common MCP security mistake</td></tr>
+          <tr><td>Findings panel</td><td>Surfaces MCP-spec compliance issues during generation</td><td>Developer sees issues inline, not post-deployment</td></tr>
+          <tr><td>Approval checkpoints</td><td>Human review gates between plan, code, and ship</td><td>Governance baked in, not bolted on</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Defensibility</div>
+    <h2>Six layers of moat</h2>
+    <div class="moat-grid">
+      <div class="moat-card">
+        <div class="moat-icon-row">
+          <div class="moat-icon">📡</div>
+          <h3>Data flywheel</h3>
+        </div>
+        <p>Every schema validation failure, rate limit edge case, and auth error that surfaces during generation is a signal. Collected anonymously across all runs, this data continuously improves default templates. Competitors cannot replicate this without the usage history.</p>
+      </div>
+      <div class="moat-card">
+        <div class="moat-icon-row">
+          <div class="moat-icon">📚</div>
+          <h3>Recipe library network effect</h3>
+        </div>
+        <p>A public library of pre-validated BobShell recipes for Stripe, Salesforce, GitHub, Jira, and SAP becomes the default starting point. First-mover in a recipe library is extremely sticky — developers use what already exists.</p>
+      </div>
+      <div class="moat-card">
+        <div class="moat-icon-row">
+          <div class="moat-icon">🛡️</div>
+          <h3>Regulated-industry compliance layer</h3>
+        </div>
+        <p>Domain-specific adapters encoding AML audit requirements, FHIR compliance, GDPR-compliant logging, and PII detection address a gap that enterprises pay for. Generic competitors lack the domain expertise to build this. Your ING background is a direct competitive asset.</p>
+      </div>
+      <div class="moat-card">
+        <div class="moat-icon-row">
+          <div class="moat-icon">🔏</div>
+          <h3>Provenance and versioning</h3>
+        </div>
+        <p>Every generated server carries a cryptographic fingerprint tied to the exact OpenAPI spec version, Forge version, and configuration used. For regulated industries this is a legal requirement. Nobody else is thinking about MCP server provenance right now.</p>
+      </div>
+      <div class="moat-card">
+        <div class="moat-icon-row">
+          <div class="moat-icon">🏅</div>
+          <h3>MCP Forge Certified badge</h3>
+        </div>
+        <p>A trust signal that a server was generated, tested, and audited by the Forge. Once this badge is recognized as a quality standard in the MCP ecosystem, switching costs become very high. Standards bodies are the stickiest moat of all.</p>
+      </div>
+      <div class="moat-card">
+        <div class="moat-icon-row">
+          <div class="moat-icon">⚙️</div>
+          <h3>Regenerability as CI/CD primitive</h3>
+        </div>
+        <p>Once the Forge is in a team's CI/CD pipeline — triggered automatically when the upstream OpenAPI spec changes — it becomes infrastructure they depend on continuously. Not a tool they run occasionally. Switching costs become very high.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Business Model</div>
+    <h2>Open core with enterprise compliance layer</h2>
+    <div class="pricing-grid">
+      <div class="price-card">
+        <div class="price-name">Open core</div>
+        <div class="price-val">Free</div>
+        <ul class="price-features">
+          <li>Core Forge engine open source</li>
+          <li>Basic OpenAPI to MCP generation</li>
+          <li>Community recipe library</li>
+          <li>Local-only runs</li>
+          <li>Drives adoption and trust at scale</li>
+        </ul>
+      </div>
+      <div class="price-card featured">
+        <div class="price-badge">Most popular</div>
+        <div class="price-name">Pro / Teams</div>
+        <div class="price-val">$49–$199/mo</div>
+        <ul class="price-features">
+          <li>Hosted regeneration pipeline</li>
+          <li>CI/CD integration (GitHub Actions)</li>
+          <li>Adversarial test suite</li>
+          <li>Private recipe library</li>
+          <li>Multi-model cost routing dashboard</li>
+          <li>Priority support</li>
+        </ul>
+      </div>
+      <div class="price-card">
+        <div class="price-name">Enterprise compliance</div>
+        <div class="price-val">Custom</div>
+        <ul class="price-features">
+          <li>AML, FHIR, GDPR domain adapters</li>
+          <li>Cryptographic provenance tracking</li>
+          <li>Full audit trail export</li>
+          <li>On-prem or private cloud deployment</li>
+          <li>Dedicated compliance team</li>
+          <li>SLAs and custom SLA</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Go-to-Market</div>
+    <h2>Four phases from hackathon to scale</h2>
+    <div class="phase-timeline">
+      <div class="phase-block">
+        <div class="phase-num">Phase 1</div>
+        <div class="phase-name">Hackathon win</div>
+        <div class="phase-sub">IBM Bob demo, 9 primitives</div>
+      </div>
+      <div class="phase-block">
+        <div class="phase-num">Phase 2</div>
+        <div class="phase-name">Open source launch</div>
+        <div class="phase-sub">Core Forge on GitHub</div>
+      </div>
+      <div class="phase-block">
+        <div class="phase-num">Phase 3</div>
+        <div class="phase-name">Recipe library</div>
+        <div class="phase-sub">Stripe, GitHub, Jira</div>
+      </div>
+      <div class="phase-block">
+        <div class="phase-num">Phase 4</div>
+        <div class="phase-name">Enterprise compliance</div>
+        <div class="phase-sub">Finance and healthcare adapters</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Risk Register</div>
+    <h2>Honest risks and mitigations</h2>
+    <div class="risk-grid">
+      <div class="risk-card">
+        <span class="step-tag tag-red">High risk</span>
+        <h3>A funded startup ships this first</h3>
+        <p>The open core model and the compliance layer are your time-to-moat hedge. Generic competitors will not build regulated-industry adapters quickly — they lack the domain expertise. Move to the compliance layer fast.</p>
+      </div>
+      <div class="risk-card">
+        <span class="step-tag tag-red">High risk</span>
+        <h3>IBM Bob lock-in reduces portability</h3>
+        <p>The Forge logic should be Bob-native for the hackathon, but the underlying generation pipeline should be platform-portable. Bob is the accelerator, not the foundation. Design the pipeline to be extractable.</p>
+      </div>
+      <div class="risk-card">
+        <span class="step-tag tag-amber">Medium risk</span>
+        <h3>OpenAPI spec quality varies wildly</h3>
+        <p>Invest early in a spec linting and normalization layer. The Forge should improve a bad spec, not fail on it. This is also a differentiation point — competitors will fail on messy real-world specs.</p>
+      </div>
+      <div class="risk-card">
+        <span class="step-tag tag-amber">Medium risk</span>
+        <h3>MCP itself is still evolving</h3>
+        <p>Pin to a specific MCP SDK version in each recipe. The regenerability model is your hedge here — when MCP changes, users re-run the recipe and get an updated server automatically. This is a feature, not a bug.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <strong>The forge is the artifact.</strong> The servers are byproducts.
+  </div>
+
+</div>
+
+<!-- ===================== IMPLEMENTATION TAB ===================== -->
+<div id="tab-impl" class="page">
+
+  <div class="impl-container">
+
+    <div class="impl-hero">
+      <div class="hero-eyebrow" style="display:inline-flex;margin-bottom:1rem">Implementation Roadmap</div>
+      <h1>Build plan: structure first, layers second</h1>
+      <p>Start with the skeleton that proves the pipeline works end to end. Then add each capability layer one at a time, with a test gate between every milestone before moving forward.</p>
+    </div>
+
+    <!-- MILESTONE 1 -->
+    <div class="milestone">
+      <div class="milestone-left">
+        <div class="milestone-dot alpha">M1</div>
+        <div class="milestone-connector"></div>
+      </div>
+      <div class="milestone-body">
+        <div class="milestone-header">
+          <div class="milestone-title-group">
+            <div class="milestone-phase">Foundation — Week 1</div>
+            <h2>Skeleton pipeline: OpenAPI in, stub server out</h2>
+          </div>
+          <div class="milestone-timing">Days 1–5</div>
+        </div>
+        <p class="milestone-desc">Build the absolute minimum that proves the concept: a Bob-orchestrated pipeline that reads an OpenAPI spec and emits a syntactically valid, runnable MCP server stub. No security, no tests, no docs yet — just proving the pipeline works.</p>
+
+        <div class="task-list">
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Set up Bob project structure and BobShell entry point</h4>
+              <p>Create the BobShell recipe file, define the four-agent mode sequence (Architect → Builder → Tester → Documenter), wire up the Orchestrator handoff chain.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Build the spec ingestion module (Architect mode)</h4>
+              <p>Parse YAML and JSON OpenAPI specs into a normalized internal representation. Handle missing fields gracefully — do not crash on imperfect specs. Use Granite model for parsing, output a structured plan JSON artifact.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Implement stub code generator (Builder mode)</h4>
+              <p>Generate a syntactically correct but minimal MCP server in Python. Tool definitions mapped from spec endpoints. No validation logic yet — just the skeleton structure with placeholder handlers.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Wire the first end-to-end run on a real spec</h4>
+              <p>Use the Stripe API OpenAPI spec as the test case. Run the full pipeline once. Verify the output server starts without errors and the tool list matches the spec endpoints.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="code-block"><span class="code-comment"># BobShell entry point — milestone 1 skeleton</span>
+<span class="code-key">forge</span>:
+  <span class="code-key">input</span>: <span class="code-str">"./specs/stripe.yaml"</span>
+  <span class="code-key">agents</span>:
+    - <span class="code-key">mode</span>: <span class="code-str">architect</span>  <span class="code-comment"># parse spec → plan.json</span>
+    - <span class="code-key">mode</span>: <span class="code-str">builder</span>   <span class="code-comment"># plan.json → server stub</span>
+  <span class="code-key">output</span>: <span class="code-str">"./output/stripe-mcp/"</span></div>
+
+        <div class="test-gate">
+          <div class="test-icon">✓</div>
+          <div>
+            <h4>Milestone 1 test gate — must pass before proceeding</h4>
+            <ul>
+              <li>Pipeline runs without errors on the Stripe spec</li>
+              <li>Generated server starts and responds to an MCP handshake</li>
+              <li>Tool list in generated server matches endpoints in spec</li>
+              <li>BobShell recipe is re-runnable and produces identical output</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="milestone-divider">
+
+    <!-- MILESTONE 2 -->
+    <div class="milestone">
+      <div class="milestone-left">
+        <div class="milestone-dot alpha">M2</div>
+        <div class="milestone-connector"></div>
+      </div>
+      <div class="milestone-body">
+        <div class="milestone-header">
+          <div class="milestone-title-group">
+            <div class="milestone-phase">Security layer — Week 1–2</div>
+            <h2>Add strict validation, secret handling, and Semgrep gate</h2>
+          </div>
+          <div class="milestone-timing">Days 4–9</div>
+        </div>
+        <p class="milestone-desc">Upgrade the generated server with the security-by-default defaults that hand-rolled servers consistently miss. This is the layer that makes the Forge output materially better than anything a developer would write by hand.</p>
+
+        <div class="task-list">
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Implement strict input validation from spec schemas</h4>
+              <p>Generate Pydantic models or JSON Schema validators directly from the OpenAPI parameter schemas. Every tool in the generated server must reject inputs that do not match the spec. No hallucinated parameters accepted.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Implement env-var-based secret handling</h4>
+              <p>Wire Bob's secrets detection layer into the Builder mode. Any auth value, API key, or credential found in the spec is automatically lifted to an environment variable reference. The generated server reads from env, never from hardcoded values. Verify via Bob's secrets scan.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Add structured error responses</h4>
+              <p>Generate consistent error response schemas for all tool handlers — rate limit errors, auth failures, network timeouts, and validation errors. Agents consuming the MCP server get structured errors they can reason about, not raw stack traces.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Integrate inline Semgrep scanning as build gate</h4>
+              <p>Add the Bob Semgrep scan step after code generation. Define the rule set: no hardcoded credentials, no unsafe deserialization, no uncaught exceptions leaking internals. Generation fails if any rule fires — the user sees the issue in Bob's Findings panel before any code is saved.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="test-gate">
+          <div class="test-icon">✓</div>
+          <div>
+            <h4>Milestone 2 test gate</h4>
+            <ul>
+              <li>Sending a malformed parameter returns a structured validation error, not a crash</li>
+              <li>No API keys appear anywhere in the generated source files — only env var references</li>
+              <li>Semgrep scan passes cleanly on all generated code</li>
+              <li>A deliberately injected secret in the spec is caught and rejected by secrets detection</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="milestone-divider">
+
+    <!-- MILESTONE 3 -->
+    <div class="milestone">
+      <div class="milestone-left">
+        <div class="milestone-dot alpha">M3</div>
+        <div class="milestone-connector"></div>
+      </div>
+      <div class="milestone-body">
+        <div class="milestone-header">
+          <div class="milestone-title-group">
+            <div class="milestone-phase">Governance layer — Week 2</div>
+            <h2>Add audit logging and human approval checkpoints</h2>
+          </div>
+          <div class="milestone-timing">Days 8–12</div>
+        </div>
+        <p class="milestone-desc">Add the governance features that turn this from a developer tool into an enterprise-ready platform. Audit logging means every tool invocation is traceable. Approval checkpoints mean humans stay in the loop before code ships.</p>
+
+        <div class="task-list">
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Generate audit logging into every tool handler</h4>
+              <p>Every generated tool handler must log: timestamp, tool name, caller identity (if available), sanitized input parameters (no secrets), response status, and latency. Log format is structured JSON, ready for ingestion into any SIEM. This is a generation-time decision, not a runtime config.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Implement Bob approval checkpoint between plan and code</h4>
+              <p>Surface the structured plan artifact to the user before Builder mode runs. The user sees: list of endpoints being implemented, auth methods detected, rate limit strategies proposed, and any ambiguities flagged. User must explicitly approve or modify before generation proceeds.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Implement second approval checkpoint before ship</h4>
+              <p>After Tester mode completes, surface the test results and Findings panel output. User approves the server as deployable. This gate is baked into the BobShell recipe — it cannot be skipped without modifying the recipe explicitly.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Add BobShell execution trace to output package</h4>
+              <p>Every generated server package includes a trace file — a complete log of every Bob agent action, decision, and model call that produced it. This is the provenance record. Enterprises can reproduce the generation exactly from this trace.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="test-gate">
+          <div class="test-icon">✓</div>
+          <div>
+            <h4>Milestone 3 test gate</h4>
+            <ul>
+              <li>Every tool invocation produces a structured audit log entry with no secrets present</li>
+              <li>Pipeline halts at the approval checkpoint and does not proceed without explicit user input</li>
+              <li>The trace file in the output package allows exact reproduction of the generation run</li>
+              <li>Skipping the approval gate via CLI flag is explicitly blocked by the recipe</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="milestone-divider">
+
+    <!-- MILESTONE 4 -->
+    <div class="milestone">
+      <div class="milestone-left">
+        <div class="milestone-dot beta">M4</div>
+        <div class="milestone-connector"></div>
+      </div>
+      <div class="milestone-body">
+        <div class="milestone-header">
+          <div class="milestone-title-group">
+            <div class="milestone-phase">Testing layer — Week 2–3</div>
+            <h2>Adversarial test suite generation and Bob Tester mode</h2>
+          </div>
+          <div class="milestone-timing">Days 11–16</div>
+        </div>
+        <p class="milestone-desc">Build the automated test generation pipeline. This is what separates the Forge from every existing OpenAPI-to-code tool. Not just unit tests — an adversarial suite that tries to break the generated server the way a misbehaving agent would.</p>
+
+        <div class="task-list">
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Generate happy-path unit tests for every tool</h4>
+              <p>For each generated tool, create a unit test using valid inputs drawn from the spec's example values or generated from the schema. Tests run against the generated server with a mock HTTP backend. All happy-path tests must pass before the adversarial suite runs.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Generate malformed input tests</h4>
+              <p>For each parameter in every tool, generate edge case inputs: wrong type, missing required field, value out of range, empty string where string is required, null where null is not allowed. The server must return a structured validation error for every case — never a crash or an unhandled exception.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Generate injection attempt tests</h4>
+              <p>Test prompt injection strings, SQL injection patterns, and shell metacharacters in all string parameters. The generated server must sanitize or reject these inputs before they reach the HTTP layer. Results surface in Bob's Findings panel with severity ratings.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Generate rate limit and auth failure tests</h4>
+              <p>Simulate 429 and 401/403 responses from the upstream API. The generated server must handle these with structured error responses and sensible retry behavior — not raw HTTP errors passed through to the calling agent.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="test-gate">
+          <div class="test-icon">✓</div>
+          <div>
+            <h4>Milestone 4 test gate</h4>
+            <ul>
+              <li>All happy-path tests pass with zero errors</li>
+              <li>Every malformed input returns a structured error — no unhandled exceptions in logs</li>
+              <li>All injection attempt tests return rejection responses — nothing reaches the HTTP backend</li>
+              <li>Rate limit simulation returns structured retry guidance, not a raw 429</li>
+              <li>Test suite itself is included in the output package and re-runnable by the user</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="milestone-divider">
+
+    <!-- MILESTONE 5 -->
+    <div class="milestone">
+      <div class="milestone-left">
+        <div class="milestone-dot beta">M5</div>
+        <div class="milestone-connector"></div>
+      </div>
+      <div class="milestone-body">
+        <div class="milestone-header">
+          <div class="milestone-title-group">
+            <div class="milestone-phase">Documentation layer — Week 3</div>
+            <h2>Bob Documenter mode and complete output package</h2>
+          </div>
+          <div class="milestone-timing">Days 14–18</div>
+        </div>
+        <p class="milestone-desc">The output of the Forge is not just code — it is a complete, deployable package that a developer can hand to a junior engineer or a DevOps pipeline without any additional context. This milestone builds that package.</p>
+
+        <div class="task-list">
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Generate README with getting-started guide</h4>
+              <p>Auto-generated README covering: what the server does, which API it wraps, how to set environment variables, how to run locally, how to run the test suite, and how to deploy. Generated from the spec metadata and the plan artifact — not a generic template.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Generate environment variable reference</h4>
+              <p>A complete table of every env var the server needs, with description, format, example value, and whether it is required or optional. Sourced directly from the auth schemes detected in the spec by Architect mode.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Generate tool reference documentation</h4>
+              <p>For every MCP tool in the generated server: name, description, input schema, output schema, example call, and known error conditions. This is what the agent developer reads to understand what tools are available and how to use them.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Package the BobShell recipe as a first-class artifact</h4>
+              <p>The recipe file is included in the output package alongside the code. It references the exact spec hash, Forge version, and configuration used. Running the recipe with a new spec version produces an updated server with a clean diff against the previous output.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="test-gate">
+          <div class="test-icon">✓</div>
+          <div>
+            <h4>Milestone 5 test gate</h4>
+            <ul>
+              <li>A developer with no prior context can follow the README to get the server running in under 5 minutes</li>
+              <li>Re-running the recipe on a modified spec produces a diff-able updated server with no manual edits needed</li>
+              <li>Every env var in the reference table is actually used in the generated code — no orphans, no missing entries</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="milestone-divider">
+
+    <!-- MILESTONE 6 -->
+    <div class="milestone">
+      <div class="milestone-left">
+        <div class="milestone-dot beta">M6</div>
+        <div class="milestone-connector"></div>
+      </div>
+      <div class="milestone-body">
+        <div class="milestone-header">
+          <div class="milestone-title-group">
+            <div class="milestone-phase">Multi-model optimization — Week 3–4</div>
+            <h2>Wire Bob multi-model routing for cost efficiency</h2>
+          </div>
+          <div class="milestone-timing">Days 17–21</div>
+        </div>
+        <p class="milestone-desc">Replace the single-model default with a cost-optimized routing strategy. Spec parsing does not need a frontier model. Security review does. This milestone makes the Forge economically viable at scale.</p>
+
+        <div class="task-list">
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Profile each pipeline stage for model requirements</h4>
+              <p>Run all five stages on three different specs and measure: accuracy of output, tokens consumed, and latency per model tier (Granite, Mistral, Claude). Document the minimum model needed per stage to produce acceptable output.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Implement Bob multi-model routing rules</h4>
+              <p>Spec ingestion and plan generation: Granite model. Code generation and security review: Claude Sonnet or equivalent. Adversarial test generation: Claude with extended reasoning. Documentation: Mistral or Granite. Wire the routing rules into the Orchestrator mode configuration.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Add cost estimation to the approval checkpoint</h4>
+              <p>At the plan approval gate, show the user an estimated token cost for the full generation run before they approve. This uses the Bobcoin pricing model. Enterprise users need cost predictability before triggering generation on large specs.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="test-gate">
+          <div class="test-icon">✓</div>
+          <div>
+            <h4>Milestone 6 test gate</h4>
+            <ul>
+              <li>Total Bobcoin cost per generation run is at least 30% lower than single-model baseline</li>
+              <li>Output quality is equivalent — the same test gate suite from M4 passes on routing-optimized output</li>
+              <li>Cost estimate shown at approval checkpoint is within 15% of actual cost post-run</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="milestone-divider">
+
+    <!-- MILESTONE 7 -->
+    <div class="milestone">
+      <div class="milestone-left">
+        <div class="milestone-dot release">M7</div>
+        <div class="milestone-connector"></div>
+      </div>
+      <div class="milestone-body">
+        <div class="milestone-header">
+          <div class="milestone-title-group">
+            <div class="milestone-phase">Hackathon demo — Week 4</div>
+            <h2>Polish, demo script, and end-to-end rehearsal</h2>
+          </div>
+          <div class="milestone-timing">Days 20–25</div>
+        </div>
+        <p class="milestone-desc">The Forge is feature-complete. This milestone is about making the demo compelling, the output impressive, and every Bob feature visible to judges in a single run.</p>
+
+        <div class="task-list">
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Build the live demo: Stripe spec, end to end, 11 minutes</h4>
+              <p>The demo input is the Stripe API OpenAPI spec. The live run should complete in under 11 minutes on a clean machine. Every Bob agent transition should be visible on screen. Both approval gates must be shown — not skipped. Final output: a running MCP server that a judge can query live.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Build the second demo: re-run on a modified spec in 4 minutes</h4>
+              <p>Modify one endpoint in the Stripe spec — add a new parameter. Re-run the recipe. Show the diff between the original and updated server. This is the regenerability demo — the most defensible part of the product. Target: under 4 minutes wall clock.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Prepare the Findings panel screenshot for the pitch deck</h4>
+              <p>Run a deliberately bad spec — one with secrets in tool schemas, weak validation, and missing rate limit handling. Screenshot the Bob Findings panel showing every issue caught before generation completes. This is the most visually compelling single artifact for judges.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Write the one-page pitch and the headline numbers</h4>
+              <p>Nine Bob primitives. Two approval gates. One command. 11 minutes to a production-grade MCP server. 4 minutes to regenerate when the API changes. These numbers need to be on screen within the first 60 seconds of the demo.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="test-gate">
+          <div class="test-icon">✓</div>
+          <div>
+            <h4>Milestone 7 demo gate</h4>
+            <ul>
+              <li>Full pipeline runs clean on the Stripe spec in under 11 minutes on a cold machine</li>
+              <li>Re-run with modified spec completes in under 4 minutes</li>
+              <li>Generated server passes all M4 adversarial tests live during the demo</li>
+              <li>All nine Bob features are visible in the demo run — no feature used only in slides</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="milestone-divider">
+
+    <!-- MILESTONE 8 -->
+    <div class="milestone">
+      <div class="milestone-left">
+        <div class="milestone-dot scale">M8</div>
+        <div class="milestone-connector"></div>
+      </div>
+      <div class="milestone-body">
+        <div class="milestone-header">
+          <div class="milestone-title-group">
+            <div class="milestone-phase">Post-hackathon startup layer — Month 2+</div>
+            <h2>Compliance adapter, recipe library, and provenance system</h2>
+          </div>
+          <div class="milestone-timing">Weeks 5–12</div>
+        </div>
+        <p class="milestone-desc">The hackathon milestone proves the concept. This milestone builds the startup moat. Domain-specific compliance adapters, the public recipe library, and cryptographic provenance tracking are the three features that separate the Forge from any weekend competitor.</p>
+
+        <div class="task-list">
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Build the financial services compliance adapter</h4>
+              <p>Domain adapter for AML/transaction monitoring APIs: mandatory audit logging in the format required for financial regulators, PII detection and masking before data leaves the server, rate limit handling that respects central bank API quotas, and structured error codes that map to regulatory incident categories. Your direct AML experience at ING makes this faster and more accurate than any generic team could build it.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Launch public recipe library on GitHub</h4>
+              <p>Publish pre-validated BobShell recipes for Stripe, Salesforce, GitHub, Jira, and HubSpot. Each recipe includes the full generation config, the test suite, the output server, and a README. The library is open source and community-contributable. Seed it with five recipes and watch the network effect start.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Implement cryptographic provenance tracking</h4>
+              <p>Every generated server package gets a signed manifest: SHA-256 of the input spec, Forge version, Bob version, model routing config, and generation timestamp. The manifest is verifiable — enterprises can prove to auditors exactly what generated their MCP server. Store manifests in a public transparency log.</p>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <div class="task-content">
+              <h4>Build the CI/CD integration for automatic regeneration</h4>
+              <p>GitHub Action and GitLab CI template that watches the upstream OpenAPI spec file in a repo. When the spec changes, the Action runs the Forge recipe automatically, opens a PR with the updated server, and attaches the test results and diff as PR comments. Once merged, the team's MCP server is always in sync with the upstream API.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="test-gate">
+          <div class="test-icon">✓</div>
+          <div>
+            <h4>Milestone 8 validation — startup readiness</h4>
+            <ul>
+              <li>Financial services adapter generates servers that pass a mock regulatory audit checklist</li>
+              <li>Recipe library has at least five working recipes with passing test suites</li>
+              <li>Provenance manifest is independently verifiable by a third party without access to the Forge</li>
+              <li>CI/CD Action runs end to end on a real GitHub repo with a real spec change</li>
+              <li>First external developer has used the open-source Forge without any help from you</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <strong>Structure first, layers second, tests between every milestone.</strong><br>
+      The pipeline is the product — build it like one.
+    </div>
+
+  </div>
+</div>
+
+<script>
+  function showTab(tab) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+    event.currentTarget.classList.add('active');
+  }
+</script>
+
+</body>
+</html>
