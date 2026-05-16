@@ -17,6 +17,15 @@ Every team building agentic AI systems in 2026 ends up hand-rolling the same MCP
 
 **The first MCP server takes 11 minutes. Every one after that takes 4. Replayable forever.**
 
+### LLM-agnostic by design
+
+The Foundry is provider-neutral at both layers:
+
+- **Generation time** — you choose which LLM builds your server. Default routing uses IBM Granite and Anthropic Claude through Bob, but the provider layer is abstracted. Configure any combination of Anthropic, OpenAI, Google Gemini, xAI Grok, Mistral, or local models via Ollama per pipeline stage.
+- **Runtime** — the generated MCP server is just a server. Any MCP-compatible client connects to it: Claude Desktop, Gemini, GPT, Grok, or a local Ollama-backed agent. The protocol is open by design.
+
+No vendor lock-in at either end.
+
 ---
 
 ## The problem in one paragraph
@@ -225,6 +234,86 @@ output/
 
 ---
 
+## LLM provider configuration
+
+The Foundry abstracts LLM selection behind a `providers.yaml` config. You can route any pipeline stage to any supported provider — mix and match across stages to optimize for cost, accuracy, or latency.
+
+### Default routing (cost-optimized)
+
+```yaml
+generation:
+  architect:
+    provider: ibm
+    model: granite-3.0-8b
+    purpose: "Spec parsing and planning — lightweight, cost-optimized"
+
+  builder:
+    provider: anthropic
+    model: claude-sonnet-4
+    purpose: "Code generation — reasoning-heavy, accuracy-critical"
+
+  tester:
+    provider: anthropic
+    model: claude-sonnet-4
+    purpose: "Adversarial test generation — extended reasoning"
+
+  documenter:
+    provider: ibm
+    model: granite-3.0-8b
+    purpose: "Documentation — cost-optimized"
+```
+
+### Multi-vendor example
+
+```yaml
+generation:
+  architect:   { provider: google,    model: gemini-3.1-pro }
+  builder:     { provider: openai,    model: gpt-5.5 }
+  tester:      { provider: xai,       model: grok-4.3 }
+  documenter:  { provider: mistral,   model: mistral-large-2 }
+```
+
+### Fully local example (zero cloud calls)
+
+```yaml
+generation:
+  architect:   { provider: ollama, model: qwen2.5-coder:7b }
+  builder:     { provider: ollama, model: qwen2.5-coder:32b }
+  tester:      { provider: ollama, model: qwen2.5-coder:14b }
+  documenter:  { provider: ollama, model: llama3.2:8b }
+```
+
+### Supported providers
+
+| Provider | Models | Notes |
+|---|---|---|
+| `anthropic` | Claude Sonnet, Claude Opus, Claude Haiku | Best for code generation and reasoning |
+| `openai` | GPT-5.5, GPT-4o, o3-mini | Strong general-purpose alternative |
+| `google` | Gemini 3.1 Pro, Gemini Flash | Long-context strength for large specs |
+| `xai` | Grok 4.3, Grok 4 | Alternative reasoning model |
+| `ibm` | Granite 3.0 family | Cost-optimized via Bob native integration |
+| `mistral` | Mistral Large, Codestral | EU-hosted option for data residency |
+| `ollama` | Qwen, Llama, DeepSeek, any GGUF | Fully local, zero network egress |
+| `azure-openai` | Same as OpenAI | For Azure-resident enterprise customers |
+| `bedrock` | Claude, Llama, Mistral via AWS | For AWS-resident enterprise customers |
+
+API keys for each provider are read from environment variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, etc.) — never embedded in `providers.yaml`.
+
+### Runtime LLM compatibility
+
+The generated MCP server itself contains no LLM. Any MCP-compatible client can connect:
+
+- Claude Desktop, Claude API
+- Gemini via MCP adapter
+- GPT via MCP adapter
+- Grok via MCP adapter
+- Local Ollama-backed agents
+- Custom LangGraph, LangChain, or hand-rolled agents
+
+If a new LLM ships tomorrow with MCP support, it works with every server the Foundry has ever generated. No regeneration required.
+
+---
+
 ## Environment variables
 
 Every generated server reads configuration from environment variables. The full list is in `docs/ENV_VARS.md` in the output package. A typical generated `.env.example` looks like:
@@ -343,7 +432,7 @@ The Foundry is built in eight milestones with a test gate between each. No miles
 
 ## Defensive moat
 
-The Foundry is defensible in six ways that a weekend competitor cannot replicate:
+The Foundry is defensible in seven ways that a weekend competitor cannot replicate:
 
 1. **Data flywheel** — every schema failure and auth edge case across all runs improves the default templates. This data accumulates over time and is not copyable.
 2. **Recipe library network effect** — a growing public library of pre-validated recipes for popular APIs (Stripe, Salesforce, GitHub, Jira) creates first-mover stickiness.
@@ -351,6 +440,7 @@ The Foundry is defensible in six ways that a weekend competitor cannot replicate
 4. **Cryptographic provenance** — every server has a verifiable audit trail. For regulated industries this is a legal requirement, not a feature.
 5. **MCP Forge Certified badge** — a trust signal that the server was generated, tested, and audited by the Foundry. Standards-body stickiness.
 6. **Regenerability as CI/CD primitive** — once the Foundry is in a team's pipeline, triggered automatically on spec changes, switching costs become very high.
+7. **LLM-agnostic by design** — works with any provider at generation time and any MCP-compatible client at runtime. Competitors locked into a single vendor cannot match this flexibility, especially for enterprise customers with data residency or vendor diversification requirements.
 
 ---
 
