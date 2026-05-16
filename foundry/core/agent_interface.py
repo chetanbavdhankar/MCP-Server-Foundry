@@ -9,8 +9,9 @@ future IBM Bob integration via adapter pattern.
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 import json
+import uuid
 
 
 @dataclass
@@ -34,14 +35,15 @@ class AgentContext:
     documentation: Optional[Dict[str, str]] = None
     
     # Metadata
-    execution_id: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    execution_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     agent_trace: list = field(default_factory=list)
     errors: list = field(default_factory=list)
     
     def add_trace(self, agent_name: str, action: str, details: Optional[Dict] = None):
         """Add an entry to the execution trace."""
         self.agent_trace.append({
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "agent": agent_name,
             "action": action,
             "details": details or {}
@@ -50,7 +52,7 @@ class AgentContext:
     def add_error(self, agent_name: str, error: str, details: Optional[Dict] = None):
         """Record an error in the context."""
         self.errors.append({
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "agent": agent_name,
             "error": error,
             "details": details or {}

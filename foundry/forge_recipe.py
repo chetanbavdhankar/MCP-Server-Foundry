@@ -15,13 +15,15 @@ import argparse
 import sys
 from pathlib import Path
 
-# Add parent directory to path for imports
+# Ensure foundry package root is importable when run as a script
 sys.path.insert(0, str(Path(__file__).parent))
 
 from core.agent_interface import AgentContext
 from core.orchestrator import PipelineBuilder
 from agents.architect import ArchitectAgent
 from agents.builder import BuilderAgent
+from agents.tester import TesterAgent
+from core.approval_gates import GateRejectedError
 
 
 def parse_arguments():
@@ -62,10 +64,21 @@ Examples:
         help='Enable verbose output'
     )
     
+    parser.add_argument(
+        '--auto-approve',
+        action='store_true',
+        help='Skip interactive approval gates (for CI/CD)'
+    )
+    
     return parser.parse_args()
 
 
-async def run_pipeline(spec_path: str, output_dir: str, verbose: bool = False):
+async def run_pipeline(
+    spec_path: str,
+    output_dir: str,
+    verbose: bool = False,
+    auto_approve: bool = False,
+):
     """
     Run the complete Foundry pipeline.
     
@@ -73,39 +86,34 @@ async def run_pipeline(spec_path: str, output_dir: str, verbose: bool = False):
         spec_path: Path to the OpenAPI specification
         output_dir: Directory for output artifacts
         verbose: Enable verbose logging
+        auto_approve: Skip interactive approval gates
         
     Returns:
         Final execution context
+        
+    Raises:
+        FileNotFoundError: If spec file doesn't exist
+        GateRejectedError: If an approval gate is rejected
     """
-    # Validate input file exists
     if not Path(spec_path).exists():
-        print(f"Error: Spec file not found: {spec_path}", file=sys.stderr)
-        sys.exit(1)
+        raise FileNotFoundError(f"Spec file not found: {spec_path}")
     
-    # Create initial context
     context = AgentContext(
         spec_path=spec_path,
         output_dir=output_dir
     )
     
-    # Build the pipeline
-    # Milestone 1: Only Architect and Builder agents
-    # Tester and Documenter will be added in later milestones
     pipeline = (
         PipelineBuilder()
         .add_agent(ArchitectAgent())
         .add_agent(BuilderAgent())
+        .add_agent(TesterAgent())
         .set_output_dir(output_dir)
+        .auto_approve(auto_approve)
         .build()
     )
     
-    # Execute the pipeline
-    try:
-        final_context = await pipeline.execute_pipeline(context)
-        return final_context
-    except Exception as e:
-        print(f"\nPipeline execution failed: {str(e)}", file=sys.stderr)
-        sys.exit(1)
+    return await pipeline.execute_pipeline(context)
 
 
 def print_summary(context: AgentContext):
@@ -131,10 +139,18 @@ def print_summary(context: AgentContext):
     if context.generated_code:
         print(f"[OK] Generated {len(context.generated_code)} code files")
     
+    if context.test_results:
+        tr = context.test_results
+        print(f"[OK] Generated {tr['test_count']} adversarial test cases")
+        cats = tr.get("categories", {})
+        for cat, count in cats.items():
+            print(f"     {cat}: {count}")
+
     print("\nNext steps:")
     print(f"  1. Review the generated server in: {context.output_dir}/server/")
-    print(f"  2. Install dependencies: pip install -r requirements.txt")
-    print(f"  3. Run the server: python {context.output_dir}/server/main.py")
+    print(f"  2. Install dependencies: pip install pytest pytest-asyncio pydantic httpx")
+    print(f"  3. Run the test suite: cd {context.output_dir}/server && python -m pytest test_server.py -v")
+    print(f"  4. Run the server: python {context.output_dir}/server/main.py")
     print("="*60 + "\n")
 
 
@@ -149,17 +165,24 @@ def main():
     print(f"Output directory: {args.output}")
     print("="*60 + "\n")
     
-    # Run the pipeline
-    context = asyncio.run(run_pipeline(
-        spec_path=args.input,
-        output_dir=args.output,
-        verbose=args.verbose
-    ))
-    
-    # Print summary
-    print_summary(context)
-    
-    return 0
+    try:
+        context = asyncio.run(run_pipeline(
+            spec_path=args.input,
+            output_dir=args.output,
+            verbose=args.verbose,
+            auto_approve=args.auto_approve,
+        ))
+        print_summary(context)
+        return 0
+    except FileNotFoundError as e:
+        print(f"\nError: {e}", file=sys.stderr)
+        return 1
+    except GateRejectedError as e:
+        print(f"\nPipeline aborted: {e}", file=sys.stderr)
+        return 2
+    except Exception as e:
+        print(f"\nPipeline execution failed: {e}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
