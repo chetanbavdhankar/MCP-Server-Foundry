@@ -1,0 +1,61 @@
+{
+  "execution_id": "2026-05-16T22:21:30.933210",
+  "spec_path": "specs/test_api.yaml",
+  "output_dir": "output/test-api-repeat",
+  "agents_executed": [
+    "Architect",
+    "Architect",
+    "Builder",
+    "Builder"
+  ],
+  "trace": [
+    {
+      "timestamp": "2026-05-16T22:21:30.933210",
+      "agent": "Architect",
+      "action": "started",
+      "details": {
+        "agent": "Architect"
+      }
+    },
+    {
+      "timestamp": "2026-05-16T22:21:30.945212",
+      "agent": "Architect",
+      "action": "completed",
+      "details": {
+        "endpoints_found": 4,
+        "schemas_found": 3,
+        "auth_required": true
+      }
+    },
+    {
+      "timestamp": "2026-05-16T22:21:30.945212",
+      "agent": "Builder",
+      "action": "started",
+      "details": {
+        "agent": "Builder"
+      }
+    },
+    {
+      "timestamp": "2026-05-16T22:21:30.949710",
+      "agent": "Builder",
+      "action": "completed",
+      "details": {
+        "tools_generated": 4,
+        "files_created": 1,
+        "output_dir": "output\\test-api-repeat\\server"
+      }
+    }
+  ],
+  "errors": [],
+  "summary": {
+    "spec_path": "specs/test_api.yaml",
+    "output_dir": "output/test-api-repeat",
+    "execution_id": "2026-05-16T22:21:30.933210",
+    "has_plan": true,
+    "has_code": true,
+    "has_tests": false,
+    "has_docs": false,
+    "trace_entries": 4,
+    "error_count": 0
+  }
+}
