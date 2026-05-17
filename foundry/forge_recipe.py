@@ -15,6 +15,13 @@ import argparse
 import sys
 from pathlib import Path
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+
 # Ensure foundry package root is importable when run as a script
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -151,6 +158,19 @@ def print_summary(context: AgentContext):
     if "README.md" in context.generated_code:
         print("[OK] Generated developer documentation suite (README.md, tool_reference.md)")
         print("[OK] Generated cross-platform launch scripts (run_server.sh, run_server.bat)")
+
+    if hasattr(context, "llm_usage") and context.llm_usage["total_tokens"] > 0:
+        print("\n" + "-"*60)
+        print("💰 COST & TOKEN TRACKING DASHBOARD (M6)")
+        print("-"*60)
+        print(f"Total Tokens:      {context.llm_usage['total_tokens']:,}")
+        print(f"  - Prompt:        {context.llm_usage['prompt_tokens']:,}")
+        print(f"  - Completion:    {context.llm_usage['completion_tokens']:,}")
+        print(f"Estimated Cost:    ${context.llm_usage['total_cost_usd']:.4f}")
+        print("Calls by Provider:")
+        for provider, count in context.llm_usage["calls_by_provider"].items():
+            print(f"  - {provider}: {count} calls")
+        print("-"*60)
 
     print("\nNext steps:")
     print(f"  1. Review the generated server in: {context.output_dir}/server/")

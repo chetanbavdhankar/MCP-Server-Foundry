@@ -1,0 +1,173 @@
+openapi: 3.0.3
+info:
+  title: Stripe API (Demo Slice)
+  description: A curated subset of the Stripe API for Hackathon demonstrations.
+  version: "2023-10-16"
+servers:
+  - url: https://api.stripe.com/v1
+    description: Stripe Production API
+
+security:
+  - bearerAuth: []
+
+paths:
+  /customers:
+    post:
+      summary: Create a customer
+      description: Creates a new customer object.
+      tags:
+        - Customers
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerCreate'
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '400':
+          description: Bad request.
+          
+    get:
+      summary: List all customers
+      description: Returns a list of your customers.
+      tags:
+        - Customers
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: A limit on the number of objects to be returned.
+        - in: query
+          name: email
+          schema:
+            type: string
+          description: Filter customers by email address.
+      responses:
+        '200':
+          description: A dictionary with a data property that contains an array of customers.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Customer'
+
+  /charges:
+    post:
+      summary: Create a charge
+      description: To charge a credit card or other payment source, you create a Charge object.
+      tags:
+        - Charges
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ChargeCreate'
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Charge'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Stripe uses bearer tokens. Provide your secret API key.
+
+  schemas:
+    CustomerCreate:
+      type: object
+      properties:
+        email:
+          type: string
+          description: Customer's email address.
+        name:
+          type: string
+          description: Customer's full name.
+        description:
+          type: string
+          description: An arbitrary string attached to the object.
+      required:
+        - email
+        
+    Customer:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          example: customer
+        email:
+          type: string
+        name:
+          type: string
+        created:
+          type: integer
+      required:
+        - id
+        - object
+        - created
+        
+    ChargeCreate:
+      type: object
+      properties:
+        amount:
+          type: integer
+          description: Amount intended to be collected by this payment, in cents.
+          minimum: 50
+        currency:
+          type: string
+          description: Three-letter ISO currency code, in lowercase.
+          example: usd
+        customer:
+          type: string
+          description: The ID of an existing customer that will be charged.
+        description:
+          type: string
+      required:
+        - amount
+        - currency
+        
+    Charge:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          example: charge
+        amount:
+          type: integer
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [succeeded, pending, failed]
+      required:
+        - id
+        - object
+        - amount
+        - currency
+        - status

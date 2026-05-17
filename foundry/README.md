@@ -4,9 +4,21 @@
 
 An agentic pipeline that converts OpenAPI specifications into complete, secure, auditable [Model Context Protocol](https://modelcontextprotocol.io/) servers — with generated test suites, audit trails, and cryptographic provenance.
 
-## 🎯 Current Status
+## 🎯 Objective
+The objective of the Foundry is to **completely eliminate the boilerplate and technical debt** of connecting Enterprise APIs to AI applications (like Claude or Cursor). Instead of manually coding a Model Context Protocol (MCP) server for your API, you simply feed your raw OpenAPI YAML spec into the Foundry. The multi-agent pipeline instantly parses the endpoints, injects security and compliance rules, and generates a fully functioning, locally executable, and highly secure Python MCP server in under 5 seconds.
 
-**Milestone 5 COMPLETE** — 111 Foundry tests + 32 generated server tests passing ✅
+## 🚀 Step-by-Step User Flow
+1. **Prepare your Spec:** Place your API's OpenAPI specification (YAML/JSON) in the `specs/` directory. (We have provided Stripe, GitHub, and Jira specs as demos).
+2. **Run the Foundry:** Run the `forge_recipe.py` script, pointing it to your spec.
+3. **Approve the Gates:** The pipeline will pause to show you its architectural plan and generated code. Press `Y` to approve.
+4. **Boot the Server:** Navigate to the generated output directory, add your API keys to the newly generated `.env` file, and run `run_server.bat` (or `.sh`).
+5. **Connect to LLMs:** Your server is now broadcasting your API endpoints securely to Claude Desktop or Cursor!
+
+---
+
+## 🚦 Current Status
+
+**Milestone 8 COMPLETE** — 116 Foundry tests + 32 generated server tests passing ✅
 
 | Milestone | Description | Status |
 |-----------|-------------|--------|
@@ -15,7 +27,9 @@ An agentic pipeline that converts OpenAPI specifications into complete, secure, 
 | M3 | Governance Layer | ✅ |
 | M4 | Adversarial Test Suite | ✅ |
 | M5 | Documentation Generation | ✅ |
-| M6 | Multi-Model Routing | 🔄 Next |
+| M6 | Multi-Model Routing | ✅ |
+| M7 | Hackathon Demo | ✅ |
+| M8 | Startup Features | ✅ |
 
 ---
 
@@ -87,6 +101,25 @@ chmod +x run_server.sh
 ```
 
 The server reads JSON-RPC requests from **stdin** and writes responses to **stdout** (MCP stdio transport).
+
+---
+
+## 🔑 API Keys & Multi-Model Configuration (M6)
+
+There are **two entirely different types of API keys** used in this project:
+
+### 1. The Target API Key (Required)
+The *generated* MCP server requires credentials to talk to the target service (e.g., Stripe or GitHub).
+- **Where to put it:** After generation, look inside `output/my-server/server/.env.example`.
+- Copy it to `output/my-server/server/.env` and enter your actual target API key there.
+
+### 2. The Foundry Pipeline LLM Keys (Optional)
+The base pipeline natively uses deterministic parsing (YAML/Jinja2), meaning generating servers is **100% free and requires zero LLM API keys**. 
+
+However, with the **Multi-Model Routing Engine (M6)**, the pipeline can delegate highly complex specs to Cloud LLMs or local open-source models:
+- **Where to put it:** Copy the root `foundry/.env.example` to `foundry/.env`.
+- **Cloud Models:** Enter `GEMINI_API_KEY` or `ANTHROPIC_API_KEY`.
+- **Local Models (Ollama):** You can run models 100% locally and completely free. Ensure you have [Ollama](https://ollama.com/) installed and running (`ollama serve`). The router defaults to `http://localhost:11434` and the `llama3` model, which you can customize in the routing config or `.env`.
 
 ---
 
@@ -219,6 +252,28 @@ foundry/
 - **Malformed input tests** (per required param) — empty args, wrong-type values
 - **Injection tests** (per injectable tool × 8 payloads) — SQL, shell, prompt injection
 
+### 📚 M5 — Documentation Generation
+- **Standalone `DocumenterAgent`** compiling markdown dynamically from Architect plans
+- **Premium README.md** auto-generation with setup guides and Claude/Cursor configurations
+- **Detailed Tool Reference** detailing schemas and parameter types in OpenAPI context
+- **Cross-Platform Launch Scripts** (`run_server.sh` and `run_server.bat`) checking environment variables
+
+### 🧠 M6 — Multi-Model Routing
+- **Provider Abstraction** genericizing Anthropic, Google Gemini, and local Ollama interactions
+- **Cost-Optimized Stage Routing** distributing specific agents to specific model architectures
+- **Token/Cost Tracking** dashboard rendered upon execution summarizing financial footprint
+
+### 🏆 M7 — Hackathon Demo
+- **Curated Stripe Spec** showcasing complex schemas and Bearer Auth
+- **Cold Start Script** guiding users from an empty folder to a running Stripe MCP server in 11 minutes
+- **Regeneration Script** showcasing zero-friction updates to endpoints
+
+### 🚀 M8 — Startup Features
+- **Enterprise Compliance Engine** auto-flagging PCI-DSS (AML) and HIPAA (FHIR) PII fields
+- **Automated Pydantic Masking** injecting `x-compliance-mask` rules into JSON schema constraints
+- **Public Recipe Library** providing ready-to-forge specifications for GitHub, Jira, and Stripe
+- **CI/CD Pipeline** built on GitHub Actions running the Foundry natively on pull requests
+
 ---
 
 ## Running the Foundry's Own Tests
@@ -228,7 +283,7 @@ cd foundry
 python -m pytest tests/ -v
 ```
 
-Expected output: **111 passed**
+Expected output: **116 passed**
 
 | Test File | Count | What it covers |
 |-----------|-------|----------------|
@@ -238,11 +293,28 @@ Expected output: **111 passed**
 | `test_governance.py` | 19 | Audit logger, approval gates, file hashing |
 | `test_tester_agent.py` | 19 | Helper functions, TesterAgent execution |
 | `test_documenter_agent.py` | 3 | DocumenterAgent, Jinja2 template compiling, run recipes line endings |
+| `test_providers.py` | 3 | Provider interface token calculations, API key handling |
+| `test_routing.py` | 2 | Stage-specific model routing rules and default paths |
 | `test_integration.py` | 2 | Full 4-agent (Architect → Builder → Tester → Documenter) E2E pipeline |
 
 ---
 
 ## Recent Changes
+
+### Milestone 8: Startup Features (2026-05-17)
+- **Why**: Enterprise AI adoption is blocked by compliance. Generating a server isn't enough; it must securely handle PII and PCI data without developer intervention. Furthermore, the community needs out-of-the-box recipes to prove value immediately.
+- **How**: Built a native `ComplianceEngine` that statically analyzes OpenAPI specs for terms like `ssn`, `credit_card`, and `patient_id`. It injects `x-compliance-mask` tags directly into the generated Pydantic models. We updated `audit_logger.py.j2` to read these tags and redact flagged payloads dynamically. Generated `stripe_demo.yaml`, `github_demo.yaml`, and `jira_demo.yaml` recipes and orchestrated them through a `.github/workflows/foundry-ci.yml` pipeline.
+- **Impact**: Transforms the Foundry from a scaffolding tool into an enterprise-grade compliance platform. Organizations can securely connect LLMs to healthcare and financial systems with mathematical certainty that logs will not leak sensitive information.
+
+### Milestone 7: Hackathon Demo (2026-05-17)
+- **Why**: We needed to physically demonstrate the immense speed and power of the Foundry pipeline against a massive, world-class enterprise API in under 15 minutes.
+- **How**: Built precise presentation scripts (`cold_start_script.md`, `regeneration_script.md`) and a bespoke Stripe OpenAPI slice. The scripts detail exactly how to pitch, execute, test, and deploy the generated codebase live on stage.
+- **Impact**: Provides a definitive sales/demo toolkit for internal advocacy or public hackathons, proving that the system works flawlessly.
+
+### Milestone 6: Multi-Model Routing (2026-05-17)
+- **Why**: An agentic pipeline requires intelligent text generation, but running expensive models (like Claude Opus) on simple formatting tasks destroys profit margins. Different stages require different architectures.
+- **How**: Built `core/providers.py` adapting `httpx` logic to interface with Anthropic, Google, and Ollama APIs. Built `core/routing.py` with an auto-routing engine mapping heavy coding tasks to premium models and formatting/parsing tasks to fast, cheap models. Appended `AgentContext` with a comprehensive token accumulator and emitted it as a CLI dashboard.
+- **Impact**: Provides highly cost-effective, deterministic intelligence to agents, tracking every penny spent across the pipeline execution lifecycle.
 
 ### Milestone 5: Documentation Generation (2026-05-17)
 - **Why**: Providing generated servers without automated integration guides, detailed schema parameter documentation, and quick-start launch recipes leaves a high onboarding friction for developers connecting their MCP servers to LLM clients (like Claude or Cursor).

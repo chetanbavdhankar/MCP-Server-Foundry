@@ -177,6 +177,12 @@ class ValidationModelGenerator:
         constraints = self._get_validation_constraints(schema)
         field_args.extend(constraints)
         
+        # Enterprise Compliance injection (M8)
+        if schema.get("x-compliance-mask") is True:
+            tags = schema.get("x-compliance-tags", [])
+            json_extra = f'{{"mask": True, "compliance_tags": {tags}}}'
+            field_args.append(f"json_schema_extra={json_extra}")
+            
         # Build the field definition
         field_def = f"{field_name}: {python_type}"
         if field_args:

@@ -102,7 +102,7 @@ class BuilderAgent(StandaloneAgent):
 
             # Step 6b: Generate runtime audit logger (M3)
             print(f"  [Governance] Generating runtime audit logger...")
-            audit_logger_code = self._generate_audit_logger()
+            audit_logger_code = self._generate_audit_logger(plan.get("sensitive_fields", []))
             
             # Step 7: Create output directory structure
             output_dir = Path(context.output_dir)
@@ -251,7 +251,7 @@ class BuilderAgent(StandaloneAgent):
         template = self.jinja_env.get_template("error_schemas.py.j2")
         return template.render()
     
-    def _generate_audit_logger(self) -> str:
+    def _generate_audit_logger(self, sensitive_fields: List[str] = None) -> str:
         """
         Generate runtime audit logger for the MCP server.
         
@@ -259,7 +259,7 @@ class BuilderAgent(StandaloneAgent):
             Audit logger code as string
         """
         template = self.jinja_env.get_template("audit_logger.py.j2")
-        return template.render()
+        return template.render(sensitive_fields=sensitive_fields or [])
     
     def _generate_server(self, plan: Dict[str, Any], tools: List[Dict[str, Any]]) -> str:
         """

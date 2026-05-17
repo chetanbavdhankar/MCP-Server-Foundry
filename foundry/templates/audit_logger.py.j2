@@ -71,12 +71,20 @@ class RuntimeAuditLogger:
         })
 
     def _sanitize_args(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """Redact sensitive-looking argument values."""
+        """Redact sensitive-looking argument values and enterprise compliance flagged fields."""
         sanitized = {}
+        # Hardcoded secrets
         sensitive_keys = {"password", "secret", "token", "key", "credential", "auth"}
+        
+        # Enterprise compliance flagged fields (PCI/HIPAA) dynamically injected at build-time
+        {% if sensitive_fields %}
+        compliance_fields = {{ sensitive_fields | tojson }}
+        sensitive_keys.update(compliance_fields)
+        {% endif %}
+        
         for k, v in args.items():
             if any(s in k.lower() for s in sensitive_keys):
-                sanitized[k] = "***REDACTED***"
+                sanitized[k] = "***REDACTED (COMPLIANCE MASK)***"
             elif isinstance(v, str) and len(v) > 500:
                 sanitized[k] = v[:500] + "...[truncated]"
             else:

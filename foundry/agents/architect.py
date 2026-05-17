@@ -44,6 +44,19 @@ class ArchitectAgent(StandaloneAgent):
             # Load the OpenAPI specification
             print(f"  Loading spec from: {context.spec_path}")
             spec_data = load_spec(context.spec_path)
+            
+            # Run enterprise compliance scan (M8)
+            from core.compliance import ComplianceEngine
+            compliance = ComplianceEngine()
+            compliance_results = compliance.enforce(spec_data)
+            
+            total_flags = sum(compliance_results.values())
+            if total_flags > 0:
+                print(f"  [Compliance] Flagged {total_flags} sensitive fields for redaction:")
+                for adapter_name, count in compliance_results.items():
+                    if count > 0:
+                        print(f"    - {adapter_name}: {count} fields")
+            
             context.spec_data = spec_data
             
             # Normalize the specification
@@ -58,6 +71,27 @@ class ArchitectAgent(StandaloneAgent):
             
             # Build the plan
             plan = self._build_plan(parsed_spec, auth_info)
+            
+            # Extract sensitive field names for the Audit Logger (M8)
+            sensitive_fields = set()
+            def extract_sensitive(schema: Dict[str, Any]):
+                if not isinstance(schema, dict): return
+                if schema.get("x-compliance-mask") is True:
+                    # We don't have the key name here easily, but we can grab it from properties
+                    pass
+                if "properties" in schema:
+                    for k, v in schema["properties"].items():
+                        if isinstance(v, dict) and v.get("x-compliance-mask") is True:
+                            sensitive_fields.add(k)
+                        extract_sensitive(v)
+                if "items" in schema:
+                    extract_sensitive(schema["items"])
+            
+            schemas = spec_data.get("components", {}).get("schemas", {})
+            for s in schemas.values(): extract_sensitive(s)
+            
+            plan["sensitive_fields"] = list(sensitive_fields)
+            
             context.plan = plan
             
             # Save plan to output directory

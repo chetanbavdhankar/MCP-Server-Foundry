@@ -51,31 +51,37 @@
 
 ## To-Do: Upcoming Milestones
 
-### ⏳ Milestone 6: Multi-Model Routing
-- [ ] Provider abstraction layer
-- [ ] Cost-optimized model routing
-- [ ] Per-stage model configuration
-- [ ] Cost tracking dashboard
+### ✅ Milestone 6: Multi-Model Routing
+- Provider abstraction layer (`core/providers.py` supporting Anthropic, Google, Ollama)
+- Cost-optimized model routing (`core/routing.py` with stage defaults)
+- Per-stage model configuration (Dynamic runtime provider mapping)
+- Cost tracking dashboard (Cost, prompt, and completion token metrics rendered in CLI)
 
-### ⏳ Milestone 7: Hackathon Demo
-- [ ] 11-minute cold start demo script
-- [ ] 4-minute regeneration demo
-- [ ] Live Stripe API example
-- [ ] Demo recording and slides
+---
 
-### ⏳ Milestone 8: Startup Features
-- [ ] Financial services compliance adapter (AML)
-- [ ] Healthcare compliance adapter (FHIR)
-- [ ] Public recipe library (Stripe, GitHub, Jira, Salesforce)
-- [ ] CI/CD integration (GitHub Actions)
+### ✅ Milestone 7: Hackathon Demo
+- 11-minute cold start demo script (`demo/cold_start_script.md`)
+- 4-minute regeneration demo (`demo/regeneration_script.md`)
+- Live Stripe API example (`specs/stripe_demo.yaml`)
+- Demo recording and slides (Offline presentation)
+
+---
+
+## To-Do: Upcoming Milestones
+
+### ✅ Milestone 8: Startup Features
+- [x] Financial services compliance adapter (AML/PCI)
+- [x] Healthcare compliance adapter (FHIR/HIPAA)
+- [x] Public recipe library (Stripe, GitHub, Jira, Salesforce)
+- [x] CI/CD integration (GitHub Actions)
 
 ---
 
 ## Quick Reference
 
-**Current Focus**: Milestone 6 - Multi-Model Routing  
-**Estimated Time**: 3-4 days  
-**Key Deliverable**: Cost-optimized per-stage multi-model execution engine  
+**Current Focus**: Milestone 8 - Startup Features  
+**Estimated Time**: 2 days  
+**Key Deliverable**: Enterprise compliance adapters and CI/CD automation templates  
 
 ---
 

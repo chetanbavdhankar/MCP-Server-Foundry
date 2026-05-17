@@ -40,6 +40,15 @@ class AgentContext:
     agent_trace: list = field(default_factory=list)
     errors: list = field(default_factory=list)
     
+    # Cost & Token Tracking (Milestone 6)
+    llm_usage: Dict[str, Any] = field(default_factory=lambda: {
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "total_cost_usd": 0.0,
+        "calls_by_provider": {}
+    })
+    
     def add_trace(self, agent_name: str, action: str, details: Optional[Dict] = None):
         """Add an entry to the execution trace."""
         self.agent_trace.append({
@@ -48,6 +57,18 @@ class AgentContext:
             "action": action,
             "details": details or {}
         })
+        
+    def add_llm_usage(self, provider_name: str, model_name: str, prompt_tokens: int, completion_tokens: int, cost: float):
+        """Record LLM token usage and estimated cost."""
+        self.llm_usage["prompt_tokens"] += prompt_tokens
+        self.llm_usage["completion_tokens"] += completion_tokens
+        self.llm_usage["total_tokens"] += (prompt_tokens + completion_tokens)
+        self.llm_usage["total_cost_usd"] += cost
+        
+        provider_key = f"{provider_name}:{model_name}"
+        if provider_key not in self.llm_usage["calls_by_provider"]:
+            self.llm_usage["calls_by_provider"][provider_key] = 0
+        self.llm_usage["calls_by_provider"][provider_key] += 1
     
     def add_error(self, agent_name: str, error: str, details: Optional[Dict] = None):
         """Record an error in the context."""
@@ -69,7 +90,8 @@ class AgentContext:
             "has_tests": self.test_results is not None,
             "has_docs": self.documentation is not None,
             "trace_entries": len(self.agent_trace),
-            "error_count": len(self.errors)
+            "error_count": len(self.errors),
+            "llm_usage": self.llm_usage
         }
 
 
