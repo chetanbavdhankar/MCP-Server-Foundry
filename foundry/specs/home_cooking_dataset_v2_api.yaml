@@ -1,0 +1,54 @@
+openapi: 3.0.3
+info:
+  title: My Dataset
+  version: 1.0.0
+  description: Auto-generated API schema from Home_Cooking_Dataset_v2.xlsx
+paths:
+  /search:
+    post:
+      summary: Search the My Dataset dataset
+      operationId: searchDataset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: &id001
+                Italian & Western Cuisine:
+                  type: string
+                  description: 'Data column: Italian & Western Cuisine'
+                'Unnamed: 1':
+                  type: string
+                  description: 'Data column: Unnamed: 1'
+                'Unnamed: 2':
+                  type: string
+                  description: 'Data column: Unnamed: 2'
+                'Unnamed: 3':
+                  type: string
+                  description: 'Data column: Unnamed: 3'
+                'Unnamed: 4':
+                  type: string
+                  description: 'Data column: Unnamed: 4'
+                'Unnamed: 5':
+                  type: string
+                  description: 'Data column: Unnamed: 5'
+                'Unnamed: 6':
+                  type: string
+                  description: 'Data column: Unnamed: 6'
+                'Unnamed: 7':
+                  type: string
+                  description: 'Data column: Unnamed: 7'
+                'Unnamed: 8':
+                  type: string
+                  description: 'Data column: Unnamed: 8'
+      responses:
+        '200':
+          description: List of matching records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties: *id001

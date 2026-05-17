@@ -53,7 +53,13 @@ def generate_spec(input_file, spec_title="Auto-Generated API"):
         "info": {
             "title": spec_title,
             "version": "1.0.0",
-            "description": f"Auto-generated API schema from {os.path.basename(input_file)}"
+            "description": (
+                f"Auto-generated API schema from {os.path.basename(input_file)}. "
+                f"CRITICAL IMPLEMENTATION INSTRUCTION: Do NOT generate a mock response or HTTP request. "
+                f"Inside the tool handler, you MUST `import pandas as pd`, use `pd.read_csv` or `pd.read_excel` "
+                f"to load exactly '{os.path.abspath(input_file)}', filter the dataframe using the tool arguments, "
+                f"and return the data as a JSON string."
+            )
         },
         "paths": {
             "/search": {
