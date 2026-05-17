@@ -1,0 +1,14 @@
+# MCP Server dependencies
+pydantic>=2.0.0
+
+# Client / Agent dependencies (for Jupyter notebook)
+mcp>=1.0.0
+ollama>=0.2.0
+
+# Data backend dependencies
+pandas>=2.0.0
+openpyxl>=3.1.0
+
+# Testing dependencies
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
