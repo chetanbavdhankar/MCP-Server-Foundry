@@ -23,6 +23,7 @@ from core.orchestrator import PipelineBuilder
 from agents.architect import ArchitectAgent
 from agents.builder import BuilderAgent
 from agents.tester import TesterAgent
+from agents.documenter import DocumenterAgent
 from core.approval_gates import GateRejectedError
 
 
@@ -108,6 +109,7 @@ async def run_pipeline(
         .add_agent(ArchitectAgent())
         .add_agent(BuilderAgent())
         .add_agent(TesterAgent())
+        .add_agent(DocumenterAgent())
         .set_output_dir(output_dir)
         .auto_approve(auto_approve)
         .build()
@@ -146,11 +148,16 @@ def print_summary(context: AgentContext):
         for cat, count in cats.items():
             print(f"     {cat}: {count}")
 
+    if "README.md" in context.generated_code:
+        print("[OK] Generated developer documentation suite (README.md, tool_reference.md)")
+        print("[OK] Generated cross-platform launch scripts (run_server.sh, run_server.bat)")
+
     print("\nNext steps:")
     print(f"  1. Review the generated server in: {context.output_dir}/server/")
     print(f"  2. Install dependencies: pip install pytest pytest-asyncio pydantic httpx")
     print(f"  3. Run the test suite: cd {context.output_dir}/server && python -m pytest test_server.py -v")
-    print(f"  4. Run the server: python {context.output_dir}/server/main.py")
+    print(f"  4. Setup credentials in: {context.output_dir}/server/.env")
+    print(f"  5. Launch the server: cd {context.output_dir}/server && run_server.bat (or ./run_server.sh)")
     print("="*60 + "\n")
 
 

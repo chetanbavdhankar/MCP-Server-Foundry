@@ -7,10 +7,12 @@ from core.agent_interface import AgentContext
 from core.orchestrator import PipelineBuilder
 from agents.architect import ArchitectAgent
 from agents.builder import BuilderAgent
+from agents.tester import TesterAgent
+from agents.documenter import DocumenterAgent
 
 
 class TestFullPipeline:
-    """Run the complete Architect → Builder pipeline and verify all artifacts."""
+    """Run the complete Architect → Builder → Tester → Documenter pipeline and verify all artifacts."""
 
     @pytest.mark.asyncio
     async def test_pipeline_produces_all_artifacts(self, tmp_path):
@@ -25,6 +27,8 @@ class TestFullPipeline:
             PipelineBuilder()
             .add_agent(ArchitectAgent())
             .add_agent(BuilderAgent())
+            .add_agent(TesterAgent())
+            .add_agent(DocumenterAgent())
             .set_output_dir(output_dir)
             .auto_approve(True)
             .build()
@@ -50,6 +54,17 @@ class TestFullPipeline:
         main_code = (server_dir / "main.py").read_text()
         assert "Test API" in main_code
 
+        # --- Test assertions (Tester output) ---
+        assert (server_dir / "test_server.py").exists()
+        assert result.test_results is not None
+        assert result.test_results["test_count"] > 0
+
+        # --- Documentation assertions (Documenter output) ---
+        assert (server_dir / "README.md").exists()
+        assert (server_dir / "docs" / "tool_reference.md").exists()
+        assert (server_dir / "run_server.sh").exists()
+        assert (server_dir / "run_server.bat").exists()
+
         # --- Governance assertions (M3 output) ---
         audit_file = tmp_path / "output" / "audit.jsonl"
         assert audit_file.exists()
@@ -64,12 +79,14 @@ class TestFullPipeline:
         prov = json.loads(provenance_file.read_text())
         assert prov["schema_version"] == "1.0.0"
         assert "main.py" in prov["generated_files"]
+        assert "test_server.py" in prov["generated_files"]
+        assert "README.md" in prov["generated_files"]
         assert prov["spec"]["sha256"] is not None
-        assert len(prov["agents_executed"]) >= 2
+        assert len(prov["agents_executed"]) >= 4
 
         # --- Context assertions ---
         assert result.generated_code is not None
-        assert len(result.generated_code) >= 4
+        assert len(result.generated_code) >= 8
         assert result.errors == []
 
     @pytest.mark.asyncio

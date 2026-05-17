@@ -11,8 +11,9 @@ This module contains the concrete agent implementations for the Foundry pipeline
 from .architect import ArchitectAgent
 from .builder import BuilderAgent
 from .tester import TesterAgent
+from .documenter import DocumenterAgent
 
-__all__ = ['ArchitectAgent', 'BuilderAgent', 'TesterAgent']
+__all__ = ['ArchitectAgent', 'BuilderAgent', 'TesterAgent', 'DocumenterAgent']
 
 
 # Made with Bob

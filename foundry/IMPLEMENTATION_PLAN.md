@@ -2,8 +2,8 @@
 
 ## Current Status
 
-**Milestone 3: COMPLETE** ✅  
-**Next: Milestone 4** 🔄
+**Milestone 5: COMPLETE** ✅  
+**Next: Milestone 6** 🔄
 
 ---
 
@@ -31,8 +31,7 @@
 - Auto-approve mode for CI/CD (`--auto-approve`)
 - Provenance manifest with SHA-256 file hashes
 - Runtime audit logger in generated servers
-- Runtime audit logger in generated servers
-- **108 automated tests passing across all milestones**
+- **111 automated tests passing across all milestones**
 
 ### ✅ Milestone 4: Adversarial Test Suite
 - TesterAgent generates pytest suites per server (`agents/tester.py`)
@@ -41,16 +40,16 @@
 - Test metadata tracked in `context.test_results` and provenance manifest
 - Pipeline now 3-agent: Architect → Builder → Tester
 
+### ✅ Milestone 5: Documentation Generation
+- Standalone `DocumenterAgent` added to pipeline (`agents/documenter.py`)
+- Premium README generation (`templates/server_readme.md.j2`)
+- Interactive setup & run scripts (`run_server.sh`, `run_server.bat`)
+- Detailed OpenAPI tool manuals (`templates/tool_reference.md.j2`)
+- Full pipeline integration and governance trace recording
+
 ---
 
 ## To-Do: Upcoming Milestones
-
-### ⏳ Milestone 5: Documentation Generation
-- [ ] Documenter agent
-- [ ] README generation for output servers
-- [ ] Environment variable reference
-- [ ] Tool reference documentation
-- [ ] BobShell recipe generation
 
 ### ⏳ Milestone 6: Multi-Model Routing
 - [ ] Provider abstraction layer
@@ -74,9 +73,9 @@
 
 ## Quick Reference
 
-**Current Focus**: Milestone 4 - Adversarial Test Suite  
-**Estimated Time**: 2-3 days  
-**Key Deliverable**: TesterAgent that auto-generates pytest suites for generated servers
+**Current Focus**: Milestone 6 - Multi-Model Routing  
+**Estimated Time**: 3-4 days  
+**Key Deliverable**: Cost-optimized per-stage multi-model execution engine  
 
 ---
 

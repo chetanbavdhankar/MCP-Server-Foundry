@@ -1,0 +1,67 @@
+# 🛠️ MCP Tool Reference Manual
+
+## {{ api_title }} MCP Tools
+
+This manual provides complete documentation for the **{{ tools|length }}** MCP tools exposed by the **{{ api_title }}** MCP Server. Connected AI clients can invoke these tools to fetch data or perform operations on the upstream API.
+
+---
+
+{% for tool in tools %}
+## 🔧 Tool: `{{ tool.name }}`
+
+**Description:** {{ tool.description }}
+
+### Input Schema Specifications
+
+- **Type:** `object`
+- **Required Parameters:** {% if tool.input_schema.required %}`{{ tool.input_schema.required|join("`, `") }}`{% else %}*None*{% endif %}
+
+#### Parameters Table
+
+| Parameter Name | Data Type | Required | Constraints | Description |
+|----------------|-----------|----------|-------------|-------------|
+{%- for pname, pdef in tool.input_schema.properties.items() %}
+| `{{ pname }}` | `{{ pdef.type }}` | {% if pname in tool.input_schema.required %}**Yes**{% else %}No{% endif %} | {% if pdef.enum %}`enum: {{ pdef.enum|join(", ") }}`{% elif pdef.minimum or pdef.maximum %}`min: {{ pdef.minimum|default("-inf") }}, max: {{ pdef.maximum|default("+inf") }}`{% elif pdef.minLength or pdef.maxLength %}`len: {{ pdef.minLength|default("0") }}..{{ pdef.maxLength|default("inf") }}`{% elif pdef.format %}`format: {{ pdef.format }}`{% else %}—{% endif %} | {{ pdef.description|default("No description provided.") }} |
+{%- endfor %}
+
+### Expected Tool Call JSON Request Format
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "{{ tool.name }}",
+    "arguments": {
+      {%- for pname, pdef in tool.input_schema.properties.items() %}
+      "{{ pname }}": {% if pdef.type == "integer" or pdef.type == "number" %}42{% elif pdef.type == "boolean" %}true{% elif pdef.type == "array" %}[]{% elif pdef.type == "object" %}{}{% else %}"example_value"{% endif %}{% if not loop.last %},{% endif %}
+      {%- endfor %}
+    }
+  },
+  "id": 1
+}
+```
+
+### Mock/Expected Response Payload Structure
+
+Upon validation and successful execution, the tool responds with:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Mock response for {{ tool.name }} with validated arguments: {...}"
+      }
+    ]
+  },
+  "id": 1
+}
+```
+
+---
+{% endfor %}
+
+*Generated automatically by MCP Server Foundry (Milestone 5).*

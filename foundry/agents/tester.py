@@ -113,6 +113,7 @@ class TesterAgent(StandaloneAgent):
     Reads the plan and generated_code from context, produces
     test_server.py in the server output directory.
     """
+    __test__ = False
 
     def __init__(self):
         super().__init__("Tester")
