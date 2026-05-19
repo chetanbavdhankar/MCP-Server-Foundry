@@ -17,6 +17,9 @@ Every team building agentic AI systems in 2026 ends up hand-rolling the same MCP
 
 **The first MCP server takes 11 minutes. Every one after that takes 4. Replayable forever.**
 
+### MCP Studio Frontend (New)
+The project now includes **`mcp_studio.html`**, a high-fidelity, standalone visual orchestrator. It provides a cyberpunk/glassmorphism UI for dragging and dropping data files, live-streaming the server build logs, and directly testing the generated MCP server via a built-in Ollama/Gemini chat interface.
+
 ### LLM-agnostic by design
 
 The Foundry is provider-neutral at both layers:

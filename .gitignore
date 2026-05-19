@@ -1,0 +1,34 @@
+# Environment Variables
+.env
+.env.*
+!.env.example
+*audit*
+
+# Raw Data Files
+*.csv
+*.xls
+*.xlsx
+*.json
+
+# Jupyter & Logs
+*.ipynb
+.ipynb_checkpoints/
+*.log
+
+# Python Virtual Environments & Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# IDEs and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

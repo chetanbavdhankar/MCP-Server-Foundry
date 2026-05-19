@@ -1,10 +1,12 @@
 # MCP Server dependencies
 pydantic>=2.0.0
 
-# Client / Agent dependencies (for Jupyter notebook)
-streamlit
+# Client / Agent dependencies
 mcp
 litellm
+
+# Web UI backend
+flask>=3.0.0
 
 # Data backend dependencies
 pandas>=2.0.0

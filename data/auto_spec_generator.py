@@ -110,8 +110,8 @@ def generate_spec(input_file, spec_title="Auto-Generated API"):
     with open(output_path, "w", encoding="utf-8") as f:
         yaml.dump(openapi_doc, f, sort_keys=False)
         
-    print(f"✅ Success! OpenAPI spec deployed to: {output_path}")
-    print(f"➡️ Run Foundry: python ../foundry/forge_recipe.py --input {output_path} --output ../foundry/output/{base_name}-server --auto-approve")
+    print(f"[OK] Success! OpenAPI spec deployed to: {output_path}")
+    print(f"[->] Run Foundry: python ../foundry/forge_recipe.py --input {output_path} --output ../foundry/output/{base_name}-server --auto-approve")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Auto-generate MCP OpenAPI specs from data files.")
