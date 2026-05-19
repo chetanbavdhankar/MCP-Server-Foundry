@@ -336,9 +336,214 @@ class MCPServer:
                         }
                     )
             
+            {% if tool.name == "searchDataset" %}
+            # Search dataset using Pandas
+            import pandas as pd
+            from pathlib import Path
+            
+            # Helper to find matching data file
+            def find_dataset_file():
+                current_file = Path(__file__).resolve()
+                server_dir = current_file.parent
+                server_name = server_dir.parent.name
+                base_name = server_name.replace("-server", "")
+                norm_base = "".join(c for c in base_name.lower() if c.isalnum())
+                
+                # Define candidate directories to search
+                search_dirs = [
+                    server_dir / "data",                                      # server/data/
+                    server_dir,                                               # server/
+                    server_dir.parent / "data",                               # server_name/data/
+                    Path.cwd() / "data",                                      # cwd/data/
+                    Path.cwd()                                                # cwd/
+                ]
+                
+                # Dynamically traverse upwards up to 6 levels to find any "data" directory
+                p = server_dir
+                for _ in range(6):
+                    p = p.parent
+                    search_dirs.append(p / "data")
+                    search_dirs.append(p)
+                
+                # Filter out duplicate and non-existent directories
+                dirs_to_check = []
+                for d in search_dirs:
+                    try:
+                        d_resolved = d.resolve()
+                        if d_resolved.exists() and d_resolved not in dirs_to_check:
+                            dirs_to_check.append(d_resolved)
+                    except Exception:
+                        pass
+                
+                # Supported extensions and names to ignore
+                valid_exts = ['.xlsx', '.xls', '.csv', '.json']
+                ignore_names = ['execution_trace.json', 'provenance.json', 'plan.json', 'package.json', 'composer.json', 'tsconfig.json']
+                
+                def get_files_in_dir(d):
+                    files = []
+                    # If directory name is "data" or under a "data" folder, search recursively. Otherwise search flat (glob).
+                    is_data_dir = d.name.lower() == "data" or "data" in [p.name.lower() for p in d.parents]
+                    iterator = d.rglob("*") if is_data_dir else d.glob("*")
+                    for p in iterator:
+                        try:
+                            if p.is_file() and p.suffix in valid_exts and p.name not in ignore_names:
+                                # Filter out hidden files, virtualenvs, cache dirs
+                                parts = p.parts
+                                if not any(part.startswith('.') or part in ['__pycache__', 'venv', '.venv', 'node_modules'] for part in parts):
+                                    files.append(p)
+                        except Exception:
+                            pass
+                    return files
+
+                # 1. Try finding by exact normalized stem name in all candidate directories (case/punctuation-insensitive)
+                for d in dirs_to_check:
+                    for p in get_files_in_dir(d):
+                        if "".join(c for c in p.stem.lower() if c.isalnum()) == norm_base:
+                            return p
+                                
+                # 2. Try finding by original base_name matches directly
+                for d in dirs_to_check:
+                    for ext in valid_exts:
+                        p = d / f"{base_name}{ext}"
+                        if p.exists() and p.name not in ignore_names:
+                            return p
+                            
+                # 3. Special handling for session-based combined datasets
+                if "combined_" in base_name:
+                    session_id = base_name.replace("combined_", "")
+                    for d in dirs_to_check:
+                        for session_dir in d.rglob(f"session_{session_id}"):
+                            if session_dir.is_dir():
+                                for p in session_dir.glob("combined_*.*"):
+                                    if p.suffix in valid_exts and p.name not in ignore_names:
+                                        return p
+                                        
+                # 4. Fallback: find the most recently modified dataset file in any of the search dirs
+                candidates = []
+                for d in dirs_to_check:
+                    candidates.extend(get_files_in_dir(d))
+                if candidates:
+                    if "combined" in base_name:
+                        combined_candidates = [c for c in candidates if "combined" in c.name.lower()]
+                        if combined_candidates:
+                            combined_candidates.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+                            return combined_candidates[0]
+                    candidates.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+                    return candidates[0]
+                return None
+
+            file_path = find_dataset_file()
+            if not file_path or not file_path.exists():
+                result_text = f"Error: Dataset file not found. Arguments were: {json.dumps(arguments)}"
+            else:
+                try:
+                    ext = file_path.suffix.lower()
+                    if ext == '.csv':
+                        df = pd.read_csv(file_path)
+                    elif ext in ['.xlsx', '.xls']:
+                        df = pd.read_excel(file_path)
+                    elif ext == '.json':
+                        df = pd.read_json(file_path)
+                    else:
+                        raise ValueError(f"Unsupported format: {ext}")
+                        
+                    row_count = len(df)
+                    columns = df.columns.tolist()
+                    
+                    # Clean arguments: remove empty strings/None/empty dictionary values
+                    clean_args = {k: v for k, v in arguments.items() if v is not None and str(v).strip() != ""}
+                    
+                    # Compute numeric summary statistics if possible
+                    stats = {}
+                    for col in columns:
+                        try:
+                            # Drop NaN and convert to string
+                            col_clean = df[col].dropna().astype(str).str.replace(r'[^\d\.]', '', regex=True)
+                            numeric_col = pd.to_numeric(col_clean, errors='coerce')
+                            if numeric_col.notna().sum() > 0:
+                                stats[col] = {
+                                    "min": float(numeric_col.min()),
+                                    "max": float(numeric_col.max()),
+                                    "mean": float(numeric_col.mean()),
+                                }
+                        except Exception:
+                            pass
+
+                    if not clean_args:
+                        # Empty arguments, return full summary and first 100 rows
+                        sample_rows = df.head(100).to_dict(orient="records")
+                        response = {
+                            "message": "Showing overall dataset summary and sample rows.",
+                            "total_rows": row_count,
+                            "columns": columns,
+                            "summary_statistics": stats,
+                            "records": sample_rows
+                        }
+                        result_text = json.dumps(response, ensure_ascii=False)
+                    else:
+                        # Filter dataframe
+                        global_queries = []
+                        for k in ['query', 'q', 'filter', 'search']:
+                            if k in clean_args:
+                                global_queries.append(str(clean_args[k]))
+                                del clean_args[k]
+                        for k, v in list(clean_args.items()):
+                            if k not in columns:
+                                global_queries.append(str(v))
+                                del clean_args[k]
+                                
+                        filtered_df = df.copy()
+                        for col, val in clean_args.items():
+                            if col in filtered_df.columns:
+                                val_str = str(val).strip()
+                                if pd.api.types.is_numeric_dtype(filtered_df[col]):
+                                    try:
+                                        num_val = float(val_str)
+                                        filtered_df = filtered_df[filtered_df[col] == num_val]
+                                    except ValueError:
+                                        filtered_df = filtered_df[filtered_df[col].astype(str).str.contains(val_str, case=False, na=False)]
+                                else:
+                                    filtered_df = filtered_df[filtered_df[col].astype(str).str.contains(val_str, case=False, na=False)]
+                                    
+                        for gq in global_queries:
+                            if not gq.strip():
+                                continue
+                            mask = pd.Series(False, index=filtered_df.index)
+                            for col in filtered_df.columns:
+                                mask = mask | filtered_df[col].astype(str).str.contains(gq, case=False, na=False)
+                            filtered_df = filtered_df[mask]
+                            
+                        match_count = len(filtered_df)
+                        
+                        # Fallback: if match_count is 0, let's return first 100 rows of dataset
+                        if match_count == 0:
+                            results = df.head(100).to_dict(orient="records")
+                            response = {
+                                "message": f"No matches found for search query. Showing first 100 rows of dataset as a fallback.",
+                                "total_rows_in_dataset": row_count,
+                                "matched_rows": 0,
+                                "columns": columns,
+                                "summary_statistics": stats,
+                                "records": results
+                            }
+                        else:
+                            results = filtered_df.head(100).to_dict(orient="records")
+                            response = {
+                                "total_rows_in_dataset": row_count,
+                                "matched_rows": match_count,
+                                "returned_rows": len(results),
+                                "columns": columns,
+                                "summary_statistics": stats,
+                                "records": results
+                            }
+                        result_text = json.dumps(response, ensure_ascii=False)
+                except Exception as ex:
+                    result_text = f"Error processing dataset: {str(ex)}"
+            {% else %}
             # TODO: Implement actual API call to {{ base_url }}{{ tool.endpoint.path }}
             # For now, return mock response
             result_text = f"Mock response for {{ tool.name }} with validated arguments: {json.dumps(arguments)}"
+            {% endif %}
             
             return MCPResponse(
                 jsonrpc="2.0",
