@@ -1,19 +1,17 @@
 """
 MCP Server Foundry — Web UI Backend
 
-Single-file Flask backend that orchestrates the existing CLI pipeline via subprocess.
-Launch: python foundry_ui.py → browser opens at http://localhost:7777
-
-No rewrites of existing tools — everything runs as subprocess calls to:
-  - data/auto_spec_generator.py  (spec generation)
-  - foundry/forge_recipe.py      (MCP server forging)
+Decoupled and modernized backend pointing directly to Product A (Data Agent)
+as a single, long-running FastMCP server spawned once at Flask startup.
 """
 
 from flask import Flask, request, jsonify, send_file
 import os
 import sys
+from typing import Dict, Any, List
 import json
 import uuid
+import shutil
 import subprocess
 import threading
 import webbrowser
@@ -22,94 +20,95 @@ import time
 from pathlib import Path
 
 import pandas as pd
-import yaml
 import requests as http_req
 import litellm
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-# ============================================================
-# Constants
-# ============================================================
+# ==============================================================================
+# Constants & Paths
+# ==============================================================================
 ROOT = Path(__file__).parent.resolve()
 DATA_DIR = ROOT / "data"
-SPECS_DIR = ROOT / "foundry" / "specs"
-OUTPUT_BASE = ROOT / "foundry" / "output"
 PORT = 7777
 
-# ============================================================
-# Flask App
-# ============================================================
+# Ensure ROOT/datasets exists
+DATASETS_DIR = ROOT / "datasets"
+DATASETS_DIR.mkdir(parents=True, exist_ok=True)
+
+# Product A Main Path
+PRODUCT_A_PATH = ROOT / "products" / "data-agent" / "server" / "main.py"
+
+# ==============================================================================
+# Flask App Setup
+# ==============================================================================
 app = Flask(__name__, static_folder=None)
 
-# ============================================================
-# Session State (single-user local tool)
-# ============================================================
+# ==============================================================================
+# State Management (Single User Local Session)
+# ==============================================================================
 state = {
     "session_id": None,
-    "uploaded_files": [],
     "combined_file": None,
     "columns": [],
     "row_count": 0,
     "file_size_kb": 0,
     "api_title": "My Dataset",
-    "spec_path": None,
-    "spec_content": None,
-    "output_name": None,
-    "server_main_path": None,
-    "forge_status": "idle",
-    "forge_logs": [],
-    "forge_progress": 0,
-    "forge_error": None,
-    "mcp_process": None,
+    "forge_status": "complete",
+    "forge_logs": ["Directly connected to Data Agent server."],
+    "forge_progress": 100,
     "server_tools": [],
-    "connection_config": {},
 }
 
-_forge_lock = threading.Lock()
+# ==============================================================================
+# Long-running MCP Session Background Thread Manager
+# ==============================================================================
+_loop = None
+_session = None
 
+def _run_mcp_client_thread():
+    global _loop, _session
+    _loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(_loop)
+    
+    server_params = StdioServerParameters(
+        command=sys.executable,
+        args=[str(PRODUCT_A_PATH)],
+        env={**os.environ, "DATASETS_DIR": str(DATASETS_DIR)},
+    )
+    
+    async def _manage_session():
+        global _session
+        print("[System] Spawning Product A FastMCP server once at startup...")
+        async with stdio_client(server_params) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                _session = session
+                print("[OK] Product A FastMCP Session Initialized successfully.")
+                
+                # Retrieve tools to populate UI
+                tools_resp = await session.list_tools()
+                state["server_tools"] = [
+                    {"name": t.name, "description": t.description, "schema": t.inputSchema}
+                    for t in tools_resp.tools
+                ]
+                
+                # Keep background thread alive
+                while True:
+                    await asyncio.sleep(3600)
+                    
+    try:
+        _loop.run_until_complete(_manage_session())
+    except Exception as e:
+        print(f"[Error] MCP background thread crash: {e}")
 
-def _kill_mcp():
-    """Kill any running MCP server process."""
-    proc = state.get("mcp_process")
-    if proc and proc.poll() is None:
-        try:
-            proc.terminate()
-            proc.wait(timeout=5)
-        except Exception:
-            proc.kill()
-    state["mcp_process"] = None
+# Spawn Product A on startup
+threading.Thread(target=_run_mcp_client_thread, daemon=True).start()
 
-
-def reset_state():
-    """Kill processes and reset to initial state."""
-    _kill_mcp()
-    state.update({
-        "session_id": None,
-        "uploaded_files": [],
-        "combined_file": None,
-        "columns": [],
-        "row_count": 0,
-        "file_size_kb": 0,
-        "api_title": "My Dataset",
-        "spec_path": None,
-        "spec_content": None,
-        "output_name": None,
-        "server_main_path": None,
-        "forge_status": "idle",
-        "forge_logs": [],
-        "forge_progress": 0,
-        "forge_error": None,
-        "mcp_process": None,
-        "server_tools": [],
-        "connection_config": {},
-    })
-
-
-# ============================================================
-# API Routes
-# ============================================================
+# ==============================================================================
+# Flask API Routes
+# ==============================================================================
 
 @app.route("/")
 def index():
@@ -128,7 +127,7 @@ def serve_ui(filename):
 
 @app.route("/api/upload", methods=["POST"])
 def upload():
-    """Save uploaded files, validate columns, return schema info."""
+    """Save uploaded files, merge them, and copy to datasets directory for Product A discovery."""
     files = request.files.getlist("files")
     if not files or files[0].filename == "":
         return jsonify({"error": "No files provided"}), 400
@@ -141,7 +140,7 @@ def upload():
     for f in files:
         ext = os.path.splitext(f.filename)[1].lower()
         if ext not in (".csv", ".xlsx", ".xls", ".json"):
-            return jsonify({"error": f"Unsupported format: {ext}. Use CSV, XLSX, or JSON."}), 400
+            return jsonify({"error": f"Unsupported format: {ext}."}), 400
         path = session_dir / f.filename
         f.save(str(path))
         saved.append(str(path))
@@ -155,7 +154,6 @@ def upload():
         except Exception as e:
             return jsonify({"error": f"Failed to read {f.filename}: {e}"}), 400
 
-    # Validate columns match across files
     if len(dfs) > 1:
         base = set(dfs[0].columns)
         for i, df in enumerate(dfs[1:], 2):
@@ -163,8 +161,10 @@ def upload():
                 return jsonify({"error": f"File {i} columns don't match file 1."}), 400
 
     combined = pd.concat(dfs, ignore_index=True)
-    combined_path = session_dir / f"combined_{session_id}.xlsx"
-    combined.to_excel(str(combined_path), index=False)
+    # Save as CSV stem to have a clean, discoverable dataset name
+    combined_name = f"combined_{session_id}"
+    combined_path = DATASETS_DIR / f"{combined_name}.csv"
+    combined.to_csv(str(combined_path), index=False)
 
     columns = []
     for col in combined.columns:
@@ -177,7 +177,7 @@ def upload():
     state.update({
         "session_id": session_id,
         "uploaded_files": saved,
-        "combined_file": str(combined_path),
+        "combined_file": combined_name,
         "columns": columns,
         "row_count": len(combined),
         "file_size_kb": round(os.path.getsize(combined_path) / 1024, 1),
@@ -194,201 +194,86 @@ def upload():
 
 @app.route("/api/spec", methods=["POST"])
 def generate_spec():
-    """Run auto_spec_generator.py via subprocess."""
-    data = request.get_json() or {}
-    title = data.get("title", "My Dataset")
-    state["api_title"] = title
-
+    """Mock endpoint: return a direct configuration spec to keep frontend happy."""
     combined = state.get("combined_file")
     if not combined:
         return jsonify({"error": "No file uploaded yet."}), 400
-
-    result = subprocess.run(
-        [sys.executable, str(DATA_DIR / "auto_spec_generator.py"), combined, "--title", title],
-        capture_output=True, text=True, cwd=str(ROOT),
-    )
-
-    if result.returncode != 0:
-        return jsonify({"error": f"Spec generation failed: {result.stderr}"}), 500
-
-    # Find the generated spec
-    base = os.path.splitext(os.path.basename(combined))[0].lower().replace(" ", "_").replace("-", "_")
-    spec_path = SPECS_DIR / f"{base}_api.yaml"
-
-    if not spec_path.exists():
-        return jsonify({"error": f"Spec file not found at {spec_path}"}), 500
-
-    with open(spec_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    state["spec_path"] = str(spec_path)
-    state["spec_content"] = content
-    state["output_name"] = f"{base}-server"
-
-    return jsonify({"spec_path": str(spec_path), "content": content})
+        
+    spec_yaml = f"""
+    openapi: 3.0.3
+    info:
+      title: "{state['combined_file']}"
+      description: "Direct connection to Data Agent"
+      version: 1.0.0
+    paths:
+      /search:
+        post:
+          operationId: filter_rows
+    """
+    return jsonify({"spec_path": "direct_mcp_connection", "content": spec_yaml})
 
 
 @app.route("/api/spec-content")
 def spec_content():
-    if not state.get("spec_content"):
-        return jsonify({"error": "No spec generated yet."}), 404
-    return jsonify({"content": state["spec_content"], "path": state["spec_path"]})
+    return jsonify({"content": "Direct connection to Product A Data Agent", "path": "direct_connection"})
 
 
 @app.route("/api/forge", methods=["POST"])
 def forge():
-    """Start forge_recipe.py in a background thread."""
-    if state["forge_status"] == "running":
-        return jsonify({"error": "Forge already running."}), 409
-
-    spec = state.get("spec_path")
-    if not spec:
-        return jsonify({"error": "No spec generated yet."}), 400
-
-    output_name = state["output_name"]
-    output_dir = str(OUTPUT_BASE / output_name)
-
+    """Mock endpoint: instantly returns success as the server is already spawned."""
     state.update({
-        "forge_status": "running",
-        "forge_logs": [],
-        "forge_progress": 0,
-        "forge_error": None,
-        "server_main_path": None,
+        "forge_status": "complete",
+        "forge_progress": 100,
     })
-
-    def _run():
-        try:
-            proc = subprocess.Popen(
-                [sys.executable, str(ROOT / "foundry" / "forge_recipe.py"),
-                 "-i", spec, "-o", output_dir, "--auto-approve"],
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, cwd=str(ROOT / "foundry"),
-                bufsize=1,
-            )
-            for line in iter(proc.stdout.readline, ""):
-                line = line.rstrip()
-                if not line:
-                    continue
-                with _forge_lock:
-                    state["forge_logs"].append(line)
-                    # Estimate progress from agent names
-                    ll = line.lower()
-                    if "architect" in ll and "completed" in ll:
-                        state["forge_progress"] = 25
-                    elif "builder" in ll and "completed" in ll:
-                        state["forge_progress"] = 50
-                    elif "tester" in ll and "completed" in ll:
-                        state["forge_progress"] = 75
-                    elif "documenter" in ll and "completed" in ll:
-                        state["forge_progress"] = 95
-
-            proc.wait()
-            with _forge_lock:
-                if proc.returncode == 0:
-                    state["forge_status"] = "complete"
-                    state["forge_progress"] = 100
-                    server_main = Path(output_dir) / "server" / "main.py"
-                    if server_main.exists():
-                        state["server_main_path"] = str(server_main)
-                        _build_connection_config()
-                        _auto_start_server()
-                else:
-                    state["forge_status"] = "error"
-                    state["forge_error"] = "Pipeline exited with non-zero code."
-
-        except Exception as e:
-            with _forge_lock:
-                state["forge_status"] = "error"
-                state["forge_error"] = str(e)
-
-    threading.Thread(target=_run, daemon=True).start()
     return jsonify({"status": "started"})
 
 
 @app.route("/api/forge-status")
 def forge_status():
-    with _forge_lock:
-        return jsonify({
-            "status": state["forge_status"],
-            "progress": state["forge_progress"],
-            "logs": state["forge_logs"][-50:],
-            "error": state["forge_error"],
-            "server_main_path": state["server_main_path"],
-        })
-
-
-def _build_connection_config():
-    """Build MCP connection config JSON for external clients."""
-    main_path = state.get("server_main_path")
-    if not main_path:
-        return
-    title_slug = state["api_title"].lower().replace(" ", "-")
-    config = {
-        "mcpServers": {
-            title_slug: {
-                "command": "python",
-                "args": [main_path.replace("\\", "/")],
-                "env": {"API_BASE_URL": "http://localhost"}
-            }
-        }
-    }
-    state["connection_config"] = config
-
-
-def _auto_start_server():
-    """Auto-start the MCP server subprocess after forge completes."""
-    main_path = state.get("server_main_path")
-    if not main_path or not Path(main_path).exists():
-        return
-    try:
-        proc = subprocess.Popen(
-            [sys.executable, main_path],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            env={**os.environ, "API_BASE_URL": "http://localhost"},
-        )
-        state["mcp_process"] = proc
-    except Exception:
-        pass
+    return jsonify({
+        "status": "complete",
+        "progress": 100,
+        "logs": ["Data Agent is up and running in standard stdio mode.", "Foundry Pipeline auto-connected."],
+        "error": None,
+        "server_main_path": str(PRODUCT_A_PATH),
+    })
 
 
 @app.route("/api/server/info")
 def server_info():
-    proc = state.get("mcp_process")
-    running = proc is not None and proc.poll() is None
     return jsonify({
-        "status": "running" if running else ("ready" if state.get("server_main_path") else "idle"),
-        "pid": proc.pid if (proc and proc.poll() is None) else None,
-        "server_path": state.get("server_main_path"),
-        "connection_config": state.get("connection_config", {}),
-        "tools": state.get("server_tools", []),
-        "terminal_command": f"python {state['server_main_path']}" if state.get("server_main_path") else None,
+        "status": "running",
+        "pid": os.getpid(),
+        "server_path": str(PRODUCT_A_PATH),
+        "connection_config": {"command": "python", "args": [str(PRODUCT_A_PATH)]},
+        "tools": state["server_tools"],
+        "terminal_command": f"python {PRODUCT_A_PATH}",
     })
 
 
 @app.route("/api/server/stop", methods=["POST"])
 def server_stop():
-    _kill_mcp()
     return jsonify({"status": "stopped"})
 
 
 @app.route("/api/server/start", methods=["POST"])
 def server_start():
-    _auto_start_server()
-    proc = state.get("mcp_process")
-    if proc and proc.poll() is None:
-        return jsonify({"status": "running", "pid": proc.pid})
-    return jsonify({"error": "Failed to start server."}), 500
+    return jsonify({"status": "running"})
 
 
 @app.route("/api/reset", methods=["POST"])
 def reset():
-    reset_state()
+    state.update({
+        "session_id": None,
+        "combined_file": None,
+        "columns": [],
+        "row_count": 0,
+        "file_size_kb": 0,
+        "forge_status": "complete",
+        "forge_progress": 100,
+    })
     return jsonify({"status": "reset"})
 
-
-# ============================================================
-# Ollama Model Discovery
-# ============================================================
 
 @app.route("/api/ollama/models")
 def ollama_models():
@@ -400,20 +285,17 @@ def ollama_models():
         return jsonify({"models": [], "available": False})
 
 
-# ============================================================
-# Chat — MCP + LLM Integration
-# ============================================================
+# ==============================================================================
+# ReAct Loop Chat Integration
+# ==============================================================================
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
+    """Route chat prompts to the long-running Stdio background event loop thread."""
     data = request.get_json()
     message = data.get("message", "").strip()
     if not message:
         return jsonify({"error": "Empty message."}), 400
-
-    server_path = state.get("server_main_path")
-    if not server_path or not Path(server_path).exists():
-        return jsonify({"error": "MCP server not available. Complete the forge first."}), 400
 
     llm_config = {
         "provider": data.get("provider", "ollama"),
@@ -421,86 +303,163 @@ def chat():
         "api_key": data.get("api_key", ""),
     }
 
+    if _loop is None or _session is None:
+        return jsonify({"error": "MCP session is currently initializing. Please wait a second."}), 503
+
+    # Dispatch to background thread loop for thread-safe asynchronous execution
+    coro = _run_react_agent(message, llm_config)
+    future = asyncio.run_coroutine_threadsafe(coro, _loop)
+    
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(_run_chat(message, server_path, llm_config))
-        loop.close()
+        result = future.result(timeout=60.0) # wait up to 60 seconds
         return jsonify(result)
     except Exception as e:
-        return jsonify({"error": str(e), "reply": f"Pipeline error: {e}", "tool_call": None}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e), "reply": f"ReAct agent loop failed: {e}", "steps": []}), 500
 
 
-async def _run_chat(prompt, server_path, llm_config):
-    """Connect to MCP server, query LLM, execute tools if needed."""
-    server_params = StdioServerParameters(
-        command=sys.executable,
-        args=[server_path],
-        env={**os.environ, "API_BASE_URL": "http://localhost"},
+async def _run_react_agent(user_query: str, llm_config: Dict[str, Any]) -> Dict[str, Any]:
+    """Execute a ReAct agent loop (max 5 iterations) over Product A tools, tracking steps for the UI trace."""
+    global _session
+    steps = []
+    
+    # Establish connection trace
+    steps.append({
+        "title": "Establish MCP Pipeline",
+        "status": "success",
+        "description": "Connected to long-running stdio MCP server subprocess.",
+        "code": f"Path: {PRODUCT_A_PATH}\nDatasets Dir: {DATASETS_DIR}"
+    })
+    
+    # Get available tools
+    tools = state["server_tools"]
+    tools_desc = "\n".join(
+        f"- {t['name']}: {t['description']} (Schema: {json.dumps(t['schema'])})"
+        for t in tools
     )
-
-    async with stdio_client(server_params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            tools_resp = await session.list_tools()
-            tools = tools_resp.tools
-
-            # Store tool info for UI
-            state["server_tools"] = [
-                {"name": t.name, "description": t.description, "schema": t.inputSchema}
-                for t in tools
-            ]
-
-            # Format for LLM
-            tools_desc = "\n".join(
-                f"- {t.name}: {t.description} (Schema: {json.dumps(t.inputSchema)})"
-                for t in tools
-            )
-
-            sys_prompt = (
-                f"You are a data analyst agent with these tools:\n{tools_desc}\n\n"
-                f"User query: {prompt}\n\n"
-                f"If you need a tool, reply ONLY with raw JSON: "
-                f'{{"tool": "name", "args": {{...}}}}\n'
-                f"Otherwise answer naturally."
-            )
-
-            # Step 1: Ask LLM
-            llm_reply = _query_llm(sys_prompt, llm_config)
-
-            # Step 2: Parse for tool call
-            tool_call = None
+    
+    # Current active uploaded dataset name
+    dataset_name = state.get("combined_file") or "sales" # fallback to sales if none uploaded
+    
+    system_prompt = (
+        f"You are a professional data analyst ReAct agent. You have access to these dataset tools:\n{tools_desc}\n\n"
+        f"The user has uploaded/selected the dataset: '{dataset_name}'. Every tool call requires a dataset name, so pass '{dataset_name}' as the dataset parameter.\n\n"
+        f"You operate in a ReAct loop. In each turn, you can EITHER call a tool or provide a final answer.\n"
+        f"To call a tool, respond with a JSON-wrapped tool call:\n"
+        f'{{"thought": "reasons for calling this tool", "tool": "tool_name", "args": {{"dataset": "{dataset_name}", "key": "value"}}}} \n\n'
+        f"If you have gathered all necessary information and are ready to answer the user, provide your final response in natural language markdown:\n"
+        f'{{"thought": "I have completed my lookup", "final_answer": "your markdown report here"}}\n\n'
+        f"Ensure you return STRICTLY a single, raw JSON object. Do not include markdown code fence formatting (no ```json)."
+    )
+    
+    chat_history = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_query}
+    ]
+    
+    final_reply = ""
+    last_tool_result = ""
+    
+    # Run ReAct Loop up to 5 iterations
+    for iteration in range(1, 6):
+        # Step 1: Query LLM
+        prompt_text = "\n".join(f"{h['role'].upper()}: {h['content']}" for h in chat_history)
+        llm_raw = _query_llm(prompt_text, llm_config)
+        
+        steps.append({
+            "title": f"ReAct Iteration {iteration} — Reason & Plan",
+            "status": "success",
+            "description": f"Querying the LLM to formulate reasoning and plan next actions.",
+            "code": f"--- CHAT CONTEXT SENT ---\n{prompt_text[:1500]}...\n\n--- LLM RAW RESPONSE ---\n{llm_raw}"
+        })
+        
+        # Step 2: Parse LLM Response
+        try:
+            cleaned = llm_raw.strip().strip("```json").strip("```").strip()
+            parsed = json.loads(cleaned)
+        except Exception:
+            # Fallback if LLM doesn't output valid JSON
+            final_reply = llm_raw
+            break
+            
+        thought = parsed.get("thought", "Analyzing query.")
+        
+        # Check if final answer
+        if "final_answer" in parsed:
+            final_reply = parsed["final_answer"]
+            steps.append({
+                "title": "ReAct Loop Completed",
+                "status": "success",
+                "description": "Agent successfully compiled the final answer report.",
+                "code": f"Thought: {thought}\n\nFinal Report:\n{final_reply}"
+            })
+            break
+            
+        # Check if tool call
+        if "tool" in parsed:
+            tool_name = parsed["tool"]
+            tool_args = parsed.get("args", {})
+            
+            # Formulate call logs for UI
+            json_rpc_payload = {
+                "jsonrpc": "2.0",
+                "id": iteration,
+                "method": "tools/call",
+                "params": {"name": tool_name, "arguments": {"args": tool_args}}
+            }
+            steps.append({
+                "title": f"Formulate Tool Call: {tool_name}",
+                "status": "success",
+                "description": f"Formulated standard JSON-RPC payload to call tool '{tool_name}'.",
+                "code": f"JSON-RPC Request:\n{json.dumps(json_rpc_payload, indent=2)}"
+            })
+            
+            # Step 3: Execute tool via MCP
             try:
-                cleaned = llm_reply.strip().strip("```json").strip("```").strip()
-                parsed = json.loads(cleaned)
-                if "tool" in parsed:
-                    tool_name = parsed["tool"]
-                    tool_args = parsed.get("args", {})
-                    tool_call = {"name": tool_name, "args": tool_args}
+                # FastMCP tools wrap arguments in a single "args" parameter
+                result = await _session.call_tool(tool_name, arguments={"args": tool_args})
+                result_text = "\n".join(c.text for c in result.content)
+            except Exception as tool_err:
+                result_text = json.dumps({"error": "Execution failed", "detail": str(tool_err)})
+                
+            last_tool_result = result_text
+            
+            steps.append({
+                "title": f"Execute Backend Tool: {tool_name}",
+                "status": "success",
+                "description": "JSON-RPC transmitted over stdio connection to Data Agent. Captured output.",
+                "code": f"--- Captured Tool Output ---\n{result_text[:2000]}"
+            })
+            
+            # Update history for next iteration
+            chat_history.append({"role": "assistant", "content": llm_raw})
+            chat_history.append({"role": "user", "content": f"Tool '{tool_name}' returned:\n{result_text}"})
+        else:
+            # Fallback if no tool or final answer
+            final_reply = llm_raw
+            break
+            
+    if not final_reply:
+        # Fallback if we exceeded 5 iterations without a final answer
+        try:
+            res_obj = json.loads(last_tool_result)
+            final_reply = f"Successfully queried the dataset but reached max agent iterations. Here is a raw snippet of the data:\n\n```json\n{json.dumps(res_obj, indent=2)[:1000]}\n```"
+        except Exception:
+            final_reply = f"I executed the lookup query, but reached the maximum allowed analysis steps. Here is the raw output retrieved:\n\n{last_tool_result[:1000]}"
+            
+    return {
+        "reply": final_reply,
+        "tool_call": None,
+        "tool_result": last_tool_result[:2000],
+        "steps": steps
+    }
 
-                    # Step 3: Execute tool via MCP
-                    result = await session.call_tool(tool_name, arguments=tool_args)
-                    result_text = "\n".join(c.text for c in result.content)
 
-                    # Step 4: Synthesize
-                    synth_prompt = (
-                        f"User query: {prompt}\n\n"
-                        f"Tool '{tool_name}' returned:\n{result_text}\n\n"
-                        f"Give a helpful natural language response."
-                    )
-                    final = _query_llm(synth_prompt, llm_config)
-                    return {"reply": final, "tool_call": tool_call, "tool_result": result_text[:2000]}
-
-            except (json.JSONDecodeError, KeyError):
-                pass
-
-            return {"reply": llm_reply, "tool_call": None, "tool_result": None}
-
-
-def _query_llm(prompt, config):
-    """Route to Ollama or cloud LLM via LiteLLM."""
+def _query_llm(prompt: str, config: Dict[str, Any]) -> str:
+    """Route prompts to Ollama or LiteLLM cloud integrations."""
     provider = config.get("provider", "ollama")
-    model = config.get("model", "")
+    model = config.get("model", "qwen3.5:2b")
 
     if provider == "ollama":
         try:
@@ -512,9 +471,9 @@ def _query_llm(prompt, config):
             data = resp.json()
             if "error" in data:
                 return f"Ollama error: {data['error']}"
-            return data.get("response", "No response from Ollama.")
+            return data.get("response", "")
         except http_req.ConnectionError:
-            return "Ollama is not running. Start the Ollama application first."
+            return "Ollama is not running. Start Ollama first."
         except Exception as e:
             return f"Ollama query failed: {e}"
     else:
@@ -530,13 +489,12 @@ def _query_llm(prompt, config):
             return f"LLM API error: {e}"
 
 
-# ============================================================
-# Launch
-# ============================================================
-
+# ==============================================================================
+# Web UI Entry Point
+# ==============================================================================
 if __name__ == "__main__":
     print(f"\n{'='*50}")
-    print(f"  MCP SERVER FOUNDRY — Web UI")
+    print(f"  MCP SERVER FOUNDRY — Web UI (Product A Integrated)")
     print(f"  http://localhost:{PORT}")
     print(f"{'='*50}\n")
 

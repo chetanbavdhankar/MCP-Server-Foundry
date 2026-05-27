@@ -1,0 +1,8 @@
+# MCP Server Foundry Gitignore
+output/
+__pycache__/
+*.pyc
+.env
+execution_trace.json
+plan.json
+.pytest_cache/

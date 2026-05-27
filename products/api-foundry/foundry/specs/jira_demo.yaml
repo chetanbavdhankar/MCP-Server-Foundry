@@ -1,0 +1,78 @@
+openapi: 3.0.3
+info:
+  title: Jira Software API (Demo Slice)
+  description: A curated subset of the Jira Cloud REST API.
+  version: "3.0.0"
+servers:
+  - url: https://your-domain.atlassian.net/rest/api/3
+    description: Jira Cloud
+
+security:
+  - basicAuth: []
+
+paths:
+  /issue:
+    post:
+      summary: Create issue
+      description: Creates an issue or, where the option to create subtasks is enabled in Jira, a subtask.
+      tags:
+        - Issues
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fields:
+                  type: object
+                  properties:
+                    project:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                    summary:
+                      type: string
+                    description:
+                      type: string
+                    issuetype:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                  required:
+                    - project
+                    - summary
+                    - issuetype
+              required:
+                - fields
+      responses:
+        '201':
+          description: Returns a link to the created issue.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedIssue'
+
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: Jira Cloud requires email and API token for basic authentication.
+
+  schemas:
+    CreatedIssue:
+      type: object
+      properties:
+        id:
+          type: string
+        key:
+          type: string
+        self:
+          type: string
+      required:
+        - id
+        - key
+        - self

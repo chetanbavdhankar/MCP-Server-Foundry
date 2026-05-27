@@ -339,7 +339,9 @@ async function sendChat() {
     const spinEl = document.getElementById(spinnerId);
     if (spinEl) spinEl.remove();
 
-    if (data.tool_call) {
+    if (data.steps && data.steps.length) {
+      appendTraceSteps(data.steps);
+    } else if (data.tool_call) {
       appendChat(`🔧 Tool: ${data.tool_call.name}\n   Args: ${JSON.stringify(data.tool_call.args)}`, 'tool');
     }
     appendChat(data.reply || data.error || 'No response', 'bot');
@@ -348,6 +350,57 @@ async function sendChat() {
     if (spinEl) spinEl.remove();
     appendChat(`Error: ${e.message}`, 'bot');
   }
+}
+
+function appendTraceSteps(steps) {
+  const container = document.createElement('div');
+  container.className = 'chat-msg trace-container';
+  
+  let html = `
+    <div class="trace-header-title">
+      <span class="trace-pulse"></span>
+      Backend Thinking & execution Pipeline
+    </div>
+    <div class="trace-steps-list">
+  `;
+
+  steps.forEach((step, idx) => {
+    const codeId = `trace-code-${Date.now()}-${idx}`;
+    html += `
+      <div class="trace-step-item">
+        <div class="trace-step-top" onclick="toggleTraceCode('${codeId}')">
+          <div class="trace-step-indicator done">✓</div>
+          <div class="trace-step-title-desc">
+            <div class="trace-step-title">${esc(step.title)}</div>
+            <div class="trace-step-desc">${esc(step.description)}</div>
+          </div>
+          <div class="trace-step-chevron">▼</div>
+        </div>
+        <div class="trace-step-code hidden" id="${codeId}">
+          <pre><code>${esc(step.code)}</code></pre>
+          <button class="btn btn-sm copy-trace-btn" onclick="copyText('${esc(step.code.replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n'))}')">📋 Copy Snippet</button>
+        </div>
+      </div>
+    `;
+  });
+
+  html += '</div>';
+  container.innerHTML = html;
+  $('chat-messages').appendChild(container);
+  $('chat-messages').scrollTop = $('chat-messages').scrollHeight;
+}
+
+function toggleTraceCode(id) {
+  const el = $(id);
+  if (el) {
+    el.classList.toggle('hidden');
+    $('chat-messages').scrollTop = $('chat-messages').scrollHeight;
+  }
+}
+
+function copyText(txt) {
+  navigator.clipboard.writeText(txt);
+  toast('Snippet copied');
 }
 
 function appendChat(text, role, id) {

@@ -1,0 +1,199 @@
+import asyncio
+import json
+import logging
+import os
+import re
+import sys
+import time
+from typing import Any, Dict, List, Optional
+from datetime import datetime
+
+import httpx
+from mcp.server.fastmcp import FastMCP
+from pydantic import BaseModel, Field, ValidationError
+
+# Add current directory to path for local imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import validation_models
+
+# ==============================================================================
+# 1. Configuration & Logging Setup
+# ==============================================================================
+API_TITLE = "{{ api_title }}"
+API_VERSION = "{{ api_version }}"
+BASE_URL = os.environ.get("API_BASE_URL", "{{ base_url }}")
+
+# Configure structured logging to standard error (Stdio transport uses stdout)
+logging.basicConfig(level=logging.INFO, stream=sys.stderr, format="%(message)s")
+logger = logging.getLogger("mcp-server")
+
+SECRET_PATTERNS = re.compile(r'(key|token|secret|password|auth|credential)', re.IGNORECASE)
+
+def sanitize_dict(d: Dict[str, Any]) -> Dict[str, Any]:
+    """Recursively mask sensitive values in a dictionary."""
+    sanitized = {}
+    for k, v in d.items():
+        if isinstance(v, dict):
+            sanitized[k] = sanitize_dict(v)
+        elif isinstance(v, list):
+            sanitized[k] = [sanitize_dict(item) if isinstance(item, dict) else item for item in v]
+        elif isinstance(v, str) and SECRET_PATTERNS.search(k):
+            sanitized[k] = "[MASKED]"
+        else:
+            sanitized[k] = v
+    return sanitized
+
+def log_tool_call(tool: str, args: Dict[str, Any], status: str, latency_ms: float, error: Optional[str] = None):
+    """Log tool execution as structured JSON to stderr."""
+    log_record = {
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "tool": tool,
+        "sanitized_args": sanitize_dict(args),
+        "status": status,
+        "latency_ms": round(latency_ms, 2)
+    }
+    if error:
+        log_record["error"] = error
+    logger.info(json.dumps(log_record))
+
+# ==============================================================================
+# 2. FastMCP Server Initialization
+# ==============================================================================
+mcp = FastMCP(API_TITLE)
+
+# ==============================================================================
+# 3. HTTP Client & Auth Helper
+# ==============================================================================
+async def make_api_request(
+    method: str,
+    path: str,
+    params: Optional[Dict[str, Any]] = None,
+    headers: Optional[Dict[str, Any]] = None,
+    json_data: Optional[Dict[str, Any]] = None
+) -> str:
+    """Send HTTP requests to the upstream API, applying env-var authentication dynamically."""
+    url = f"{BASE_URL.rstrip('/')}/{path.lstrip('/')}"
+    headers = headers or {}
+    params = params or {}
+    
+    # 1. Environment-Variable based Authentication mapping
+    {% if auth_required %}
+    # Auth type detection
+    auth_mapped = False
+    
+    # Bearer Token
+    if os.environ.get("API_BEARER_TOKEN"):
+        headers["Authorization"] = f"Bearer {os.environ['API_BEARER_TOKEN']}"
+        auth_mapped = True
+    elif os.environ.get("API_KEY"):
+        # Detect where API Key should go
+        headers["X-API-Key"] = os.environ["API_KEY"]
+        headers["Authorization"] = f"Bearer {os.environ['API_KEY']}"
+        params["api_key"] = os.environ["API_KEY"]
+        auth_mapped = True
+        
+    # Basic Auth
+    if os.environ.get("API_USERNAME") and os.environ.get("API_PASSWORD"):
+        import base64
+        usr = os.environ["API_USERNAME"]
+        pwd = os.environ["API_PASSWORD"]
+        encoded = base64.b64encode(f"{usr}:{pwd}".encode()).decode()
+        headers["Authorization"] = f"Basic {encoded}"
+        auth_mapped = True
+        
+    if not auth_mapped:
+        raise ValueError("Authentication credentials missing. Please set API_KEY, API_BEARER_TOKEN, or API_USERNAME/API_PASSWORD in the environment.")
+    {% endif %}
+
+    # 2. Execute Async HTTP Request
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            resp = await client.request(
+                method=method,
+                url=url,
+                params=params,
+                headers=headers,
+                json=json_data
+            )
+            # Raise exception for 4xx/5xx status codes
+            resp.raise_for_status()
+            return resp.text
+        except httpx.HTTPStatusError as e:
+            return json.dumps({
+                "error": f"Upstream API returned status code {resp.status_code}",
+                "detail": resp.text
+            })
+        except httpx.RequestError as e:
+            return json.dumps({
+                "error": f"Failed to connect to upstream API at {url}",
+                "detail": str(e)
+            })
+
+# ==============================================================================
+# 4. Generated FastMCP Tool Handlers
+# ==============================================================================
+{% for tool in tools %}
+@mcp.tool(name="{{ tool.name }}")
+async def {{ tool.name | replace('-', '_') }}(args: validation_models.{{ tool.validation_model }}) -> str:
+    """{{ tool.description | replace('"', '\\"') }}"""
+    start_time = time.time()
+    args_dict = args.model_dump()
+    
+    try:
+        # Build path parameters
+        path = "{{ tool.endpoint.path }}"
+        params_out = {}
+        headers_out = {}
+        body_out = {}
+        
+        # Dispatch parameters to their respective locations
+        {% for param in tool.endpoint.parameters %}
+        {% if param.in == 'path' %}
+        if args_dict.get("{{ param.name }}") is not None:
+            path = path.replace("{" + "{{ param.name }}" + "}", str(args_dict["{{ param.name }}"]))
+        {% elif param.in == 'query' %}
+        if args_dict.get("{{ param.name }}") is not None:
+            params_out["{{ param.name }}"] = args_dict["{{ param.name }}"]
+        {% elif param.in == 'header' %}
+        if args_dict.get("{{ param.name }}") is not None:
+            headers_out["{{ param.name }}"] = args_dict["{{ param.name }}"]
+        {% endif %}
+        {% endfor %}
+        
+        # Extract body parameters
+        {% if tool.endpoint.request_body %}
+        # The request body properties are top-level on the args model
+        # We filter out parameter keys to construct the request body
+        param_keys = {
+            {% for param in tool.endpoint.parameters %}
+            "{{ param.name }}",
+            {% endfor %}
+        }
+        body_out = {k: v for k, v in args_dict.items() if k not in param_keys and v is not None}
+        {% endif %}
+        
+        res = await make_api_request(
+            method="{{ tool.endpoint.method }}",
+            path=path,
+            params=params_out,
+            headers=headers_out,
+            json_data=body_out if body_out else None
+        )
+        
+        latency = (time.time() - start_time) * 1000.0
+        log_tool_call("{{ tool.name }}", args_dict, "success", latency)
+        return res
+        
+    except Exception as e:
+        latency = (time.time() - start_time) * 1000.0
+        log_tool_call("{{ tool.name }}", args_dict, "error", latency, error=str(e))
+        return json.dumps({
+            "error": "Tool execution failed",
+            "detail": str(e)
+        })
+
+{% endfor %}
+
+if __name__ == "__main__":
+    mcp.run()

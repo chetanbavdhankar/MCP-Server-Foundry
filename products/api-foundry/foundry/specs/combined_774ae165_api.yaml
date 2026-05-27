@@ -1,0 +1,64 @@
+openapi: 3.0.3
+info:
+  title: My Dataset
+  version: 1.0.0
+  description: 'Auto-generated API schema from combined_774ae165.xlsx. CRITICAL IMPLEMENTATION
+    INSTRUCTION: Do NOT generate a mock response or HTTP request. Inside the tool
+    handler, you MUST `import pandas as pd`, use `pd.read_csv` or `pd.read_excel`
+    to load exactly ''C:\Users\cheta\Documents\coding\mcp_server\data\session_774ae165\combined_774ae165.xlsx'',
+    filter the dataframe using the tool arguments, and return the data as a JSON string.'
+paths:
+  /search:
+    post:
+      summary: Search the My Dataset dataset
+      operationId: searchDataset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: &id001
+                model:
+                  type: string
+                  description: 'Data column: model'
+                feature_1:
+                  type: number
+                  description: 'Data column: feature_1'
+                feature_2:
+                  type: number
+                  description: 'Data column: feature_2'
+                feature_3:
+                  type: number
+                  description: 'Data column: feature_3'
+                feature_4:
+                  type: number
+                  description: 'Data column: feature_4'
+                feature_5:
+                  type: number
+                  description: 'Data column: feature_5'
+                feature_6:
+                  type: number
+                  description: 'Data column: feature_6'
+                feature_7:
+                  type: number
+                  description: 'Data column: feature_7'
+                feature_8:
+                  type: number
+                  description: 'Data column: feature_8'
+                feature_9:
+                  type: number
+                  description: 'Data column: feature_9'
+                feature_10:
+                  type: number
+                  description: 'Data column: feature_10'
+      responses:
+        '200':
+          description: List of matching records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties: *id001

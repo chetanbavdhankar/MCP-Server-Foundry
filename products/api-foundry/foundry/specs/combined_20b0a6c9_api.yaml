@@ -1,0 +1,97 @@
+openapi: 3.0.3
+info:
+  title: My Dataset
+  version: 1.0.0
+  description: 'Auto-generated API schema from combined_20b0a6c9.xlsx. CRITICAL IMPLEMENTATION
+    INSTRUCTION: Do NOT generate a mock response or HTTP request. Inside the tool
+    handler, you MUST `import pandas as pd`, use `pd.read_csv` or `pd.read_excel`
+    to load exactly ''C:\Users\cheta\Documents\coding\mcp_server\data\session_20b0a6c9\combined_20b0a6c9.xlsx'',
+    filter the dataframe using the tool arguments, and return the data as a JSON string.'
+paths:
+  /search:
+    post:
+      summary: Search the My Dataset dataset
+      operationId: searchDataset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: &id001
+                id:
+                  type: string
+                  description: 'Data column: id'
+                thread_id:
+                  type: string
+                  description: 'Data column: thread_id'
+                from_name:
+                  type: string
+                  description: 'Data column: from_name'
+                from_email:
+                  type: string
+                  description: 'Data column: from_email'
+                to_names:
+                  type: string
+                  description: 'Data column: to_names'
+                to_emails:
+                  type: string
+                  description: 'Data column: to_emails'
+                cc_names:
+                  type: string
+                  description: 'Data column: cc_names'
+                cc_emails:
+                  type: string
+                  description: 'Data column: cc_emails'
+                bcc_names:
+                  type: number
+                  description: 'Data column: bcc_names'
+                bcc_emails:
+                  type: number
+                  description: 'Data column: bcc_emails'
+                subject:
+                  type: string
+                  description: 'Data column: subject'
+                date:
+                  type: string
+                  description: 'Data column: date'
+                body:
+                  type: string
+                  description: 'Data column: body'
+                labels:
+                  type: string
+                  description: 'Data column: labels'
+                is_read:
+                  type: boolean
+                  description: 'Data column: is_read'
+                is_starred:
+                  type: boolean
+                  description: 'Data column: is_starred'
+                attachment_count:
+                  type: integer
+                  description: 'Data column: attachment_count'
+                attachment_filenames:
+                  type: string
+                  description: 'Data column: attachment_filenames'
+                attachment_sizes_kb:
+                  type: number
+                  description: 'Data column: attachment_sizes_kb'
+                attachment_mime_types:
+                  type: string
+                  description: 'Data column: attachment_mime_types'
+                priority:
+                  type: string
+                  description: 'Data column: priority'
+                folder:
+                  type: string
+                  description: 'Data column: folder'
+      responses:
+        '200':
+          description: List of matching records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties: *id001

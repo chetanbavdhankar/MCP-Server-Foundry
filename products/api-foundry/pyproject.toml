@@ -1,0 +1,17 @@
+[project]
+name = "api-foundry"
+version = "1.0.0"
+description = "Product B: OpenAPI-to-MCP FastMCP server generator"
+requires-python = ">=3.10"
+dependencies = [
+    "jinja2>=3.0.0",
+    "datamodel-code-generator>=0.25.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0"
+]
